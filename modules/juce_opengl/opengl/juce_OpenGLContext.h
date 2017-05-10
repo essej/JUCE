@@ -130,6 +130,10 @@ public:
     /** Returns true if shaders can be used in this context. */
     bool areShadersAvailable() const;
 
+    /** HACK option when enabled prevents issues on some mobile opengl drivers */
+    void setMobileBufferBugMitigation(bool flag);
+    bool getMobileBufferBugMitigation() const;
+
     /** OpenGL versions, used by setOpenGLVersionRequired(). */
     enum OpenGLVersion
     {
@@ -324,12 +328,14 @@ private:
     double currentRenderScale = 1.0;
     std::unique_ptr<Attachment> attachment;
     OpenGLPixelFormat openGLPixelFormat;
+
     void* contextToShareWith = nullptr;
     OpenGLVersion versionRequired = defaultGLVersion;
     size_t imageCacheMaxSize = 8 * 1024 * 1024;
     bool renderComponents = true, useMultisampling = false, overrideCanAttach = false;
     std::atomic<bool> continuousRepaint { false };
     TextureMagnificationFilter texMagFilter = linear;
+    bool mobileBufferBugMitigation = false;
 
     //==============================================================================
     struct AsyncWorker  : public ReferenceCountedObject
