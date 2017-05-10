@@ -205,6 +205,11 @@ public:
         compatibility profiles targeting later versions of OpenGL. To run on the
         broadest range of hardware, using the 3.2 Core profile is recommended.
     */
+
+    /** HACK option when enabled prevents issues on some mobile opengl drivers */
+    void setMobileBufferBugMitigation(bool flag);
+    bool getMobileBufferBugMitigation() const;
+
     enum OpenGLVersion
     {
         defaultGLVersion = 0, ///< Whatever the device decides to give us, normally a compatibility profile
@@ -477,6 +482,7 @@ private:
     double currentRenderScale = 1.0;
     std::unique_ptr<Attachment> attachment;
     OpenGLPixelFormat openGLPixelFormat;
+
     void* contextToShareWith = nullptr;
     Version preferredVersion{}, actualVersion{};
     API preferredAPI =
@@ -497,6 +503,7 @@ private:
     bool renderComponents = true, useMultisampling = false, overrideCanAttach = false;
     std::atomic<bool> continuousRepaint { false };
     TextureMagnificationFilter texMagFilter = linear;
+    bool mobileBufferBugMitigation = false;
 
     //==============================================================================
     struct AsyncWorker  : public ReferenceCountedObject

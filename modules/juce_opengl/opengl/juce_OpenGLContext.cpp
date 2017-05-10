@@ -1425,6 +1425,16 @@ auto OpenGLContext::getProfile() const -> Profile
     return actualProfile;
 }
 
+void OpenGLContext::setMobileBufferBugMitigation(bool flag)
+{
+    mobileBufferBugMitigation = flag;
+}
+
+bool OpenGLContext::getMobileBufferBugMitigation() const
+{
+    return mobileBufferBugMitigation;
+}
+
 void OpenGLContext::attachTo (Component& component)
 {
     component.repaint();
