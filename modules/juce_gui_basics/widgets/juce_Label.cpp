@@ -35,6 +35,8 @@ Label::Label (const String& name, const String& labelText)
     setColour (TextEditor::backgroundColourId, Colours::transparentBlack);
     setColour (TextEditor::outlineColourId, Colours::transparentBlack);
 
+    setInterceptsMouseClicks(editSingleClick || editDoubleClick, editSingleClick || editDoubleClick);
+    
     textValue.addListener (this);
 }
 
@@ -110,7 +112,7 @@ void Label::setEditable (bool editOnSingleClick,
     setWantsKeyboardFocus (isKeybordFocusable);
     setFocusContainerType (isKeybordFocusable ? FocusContainerType::keyboardFocusContainer
                                               : FocusContainerType::none);
-
+    setInterceptsMouseClicks(isKeybordFocusable, isKeybordFocusable);
     invalidateAccessibilityHandler();
 }
 
