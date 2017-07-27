@@ -61,6 +61,7 @@ MPEInstrument::MPEInstrument() noexcept
     resetLastReceivedValues();
 
     legacyMode.channelRange = allChannels;
+    allowNotesOnMasterChannel = false;
 }
 
 MPEInstrument::MPEInstrument (MPEZoneLayout layout)
@@ -353,7 +354,7 @@ void MPEInstrument::noteOn (int midiChannel,
 {
     if (! isUsingChannel (midiChannel))
         return;
-
+    
     MPENote newNote (midiChannel,
                      midiNoteNumber,
                      midiNoteOnVelocity,
@@ -396,11 +397,20 @@ void MPEInstrument::noteOff (int midiChannel,
         // If no more notes are playing on this channel in mpe mode, reset the dimension values
         if (! legacyMode.isEnabled && getLastNotePlayedPtr (midiChannel) == nullptr)
         {
-            pressureDimension.lastValueReceivedOnChannel[midiChannel - 1] = MPEValue::minValue();
-            pitchbendDimension.lastValueReceivedOnChannel[midiChannel - 1] = MPEValue::centreValue();
-            timbreDimension.lastValueReceivedOnChannel[midiChannel - 1] = MPEValue::centreValue();
+            // last dimension values received for this note should not be re-used for
+            // any new notes, so reset them:
+            // JLC
+            if (pressureDimension.trackingMode != allNotesOnChannel) {
+                pressureDimension.lastValueReceivedOnChannel[midiChannel - 1] = MPEValue::minValue();
+            }
+            if (pitchbendDimension.trackingMode != allNotesOnChannel) {
+                pitchbendDimension.lastValueReceivedOnChannel[midiChannel - 1] = MPEValue::centreValue();
+            }
+            if (timbreDimension.trackingMode != allNotesOnChannel) {
+                timbreDimension.lastValueReceivedOnChannel[midiChannel - 1] = MPEValue::centreValue();
+            }
         }
-
+        
         if (note->keyState == MPENote::off)
         {
             listeners.call ([=] (Listener& l) { l.noteReleased (*note); });
@@ -553,6 +563,7 @@ void MPEInstrument::updateNoteTotalPitchbend (MPENote& note)
     else
     {
         auto zone = zoneLayout.getLowerZone();
+        bool masternote = false;
 
         if (! zone.isUsing (note.midiChannel))
         {
@@ -561,6 +572,14 @@ void MPEInstrument::updateNoteTotalPitchbend (MPENote& note)
             if (upperZone.isUsing (note.midiChannel))
             {
                 zone = upperZone;
+            }
+            else if (allowNotesOnMasterChannel && zoneLayout.getLowerZone().getMasterChannel() == note.midiChannel) {
+                zone = zoneLayout.getLowerZone();
+                masternote = true;
+            }
+            else if (allowNotesOnMasterChannel && zoneLayout.getUpperZone().getMasterChannel() == note.midiChannel) {
+                zone = zoneLayout.getUpperZone();
+                masternote = true;
             }
             else
             {
@@ -579,7 +598,12 @@ void MPEInstrument::updateNoteTotalPitchbend (MPENote& note)
                                                             .asSignedFloat()
                                           * (float) zone.masterPitchbendRange;
 
-        note.totalPitchbendInSemitones = notePitchbendInSemitones + masterPitchbendInSemitones;
+        if (masternote) {
+            note.totalPitchbendInSemitones = masterPitchbendInSemitones;            
+        }
+        else {
+            note.totalPitchbendInSemitones = notePitchbendInSemitones + masterPitchbendInSemitones;
+        }
     }
 }
 
@@ -639,6 +663,9 @@ void MPEInstrument::handleSustainOrSostenuto (int midiChannel, bool isDown, bool
 
         if (! legacyMode.isEnabled)
         {
+            if (allowNotesOnMasterChannel)
+                isMemberChannelSustained[midiChannel - 1] = isDown;
+            
             if (zone.isLowerZone())
             {
                 for (int i = zone.getFirstMemberChannel(); i <= zone.getLastMemberChannel(); ++i)
