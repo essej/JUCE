@@ -312,7 +312,7 @@ protected:
     OwnedArray<MPESynthesiserVoice> voices;
     CriticalSection voicesLock;
 
-private:
+protected:
     //==============================================================================
     std::atomic<bool> shouldStealVoices { false };
     uint32 lastNoteOnCounter = 0;
