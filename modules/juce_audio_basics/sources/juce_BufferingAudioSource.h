@@ -103,6 +103,12 @@ public:
     /** Implements the PositionableAudioSource method. */
     bool isLooping() const override             { return source->isLooping(); }
 
+    /** Implements the PositionableAudioSource method. */
+    void setLoopRange (int64 loopStart, int64 loopLength) override;
+    
+    /** Implements the PositionableAudioSource method. */
+    void getLoopRange (int64 & loopStart, int64 & loopLength) const override { return source->getLoopRange(loopStart, loopLength); }
+
     /** A useful function to block until the next the buffer info can be filled.
 
         This is useful for offline rendering.
@@ -128,6 +134,7 @@ private:
     double sampleRate = 0;
     bool wasSourceLooping = false, isPrepared = false;
     const bool prefillBuffer;
+    bool loopRangeChanged = false;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BufferingAudioSource)

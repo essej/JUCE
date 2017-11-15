@@ -212,15 +212,27 @@ bool BufferingAudioSource::waitForNextAudioBlockReady (const AudioSourceChannelI
     return false;
 }
 
+void BufferingAudioSource::setLoopRange (int64 loopStart, int64 loopLength)
+{
+    source->setLoopRange(loopStart, loopLength);
+    loopRangeChanged = true;
+    backgroundThread.moveToFrontOfQueue (this);
+}
+
+
 int64 BufferingAudioSource::getNextReadPosition() const
 {
     jassert (source->getTotalLength() > 0);
     const auto pos = nextPlayPos.load();
 
-    return (source->isLooping() && nextPlayPos > 0)
-                    ? pos % source->getTotalLength()
-                    : pos;
+    if (source->isLooping()) {
+        int64 loopstart, looplen;
+        source->getLoopRange(loopstart, looplen);
+        return ((pos - loopstart) % looplen) + loopstart ;
+    }
+    else return pos;
 }
+
 
 void BufferingAudioSource::setNextReadPosition (int64 newPosition)
 {
@@ -247,11 +259,12 @@ bool BufferingAudioSource::readNextBufferChunk()
     {
         const ScopedLock sl (bufferRangeLock);
 
-        if (wasSourceLooping != isLooping())
+        if (wasSourceLooping != isLooping() || loopRangeChanged)
         {
             wasSourceLooping = isLooping();
             bufferValidStart = 0;
             bufferValidEnd = 0;
+            loopRangeChanged = false;
         }
 
         newBVS = jmax ((int64) 0, nextPlayPos.load());
