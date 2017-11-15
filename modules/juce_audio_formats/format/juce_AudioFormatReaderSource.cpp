@@ -39,7 +39,8 @@ AudioFormatReaderSource::AudioFormatReaderSource (AudioFormatReader* const r,
                                                   const bool deleteReaderWhenThisIsDeleted)
     : reader (r, deleteReaderWhenThisIsDeleted),
       nextPlayPos (0),
-      looping (false)
+      looping (false),
+      loopStartPos(0), loopLen(reader->lengthInSamples)
 {
     jassert (reader != nullptr);
 }
@@ -50,10 +51,18 @@ int64 AudioFormatReaderSource::getTotalLength() const                   { return
 void AudioFormatReaderSource::setNextReadPosition (int64 newPosition)   { nextPlayPos = newPosition; }
 void AudioFormatReaderSource::setLooping (bool shouldLoop)              { looping = shouldLoop; }
 
+void AudioFormatReaderSource::setLoopRange (int64 loopStart, int64 loopLength)
+{
+    loopStartPos = jmax((int64)0, jmin(loopStart, reader->lengthInSamples - 1));
+    loopLen =  jmax((int64)1, jmin(reader->lengthInSamples - loopStartPos, loopLength));
+}
+
 int64 AudioFormatReaderSource::getNextReadPosition() const
 {
-    return looping ? nextPlayPos % reader->lengthInSamples
-                   : nextPlayPos;
+    if (looping) {
+        return nextPlayPos > loopStartPos ? ((nextPlayPos - loopStartPos) % loopLen) + loopStartPos : nextPlayPos;
+    }
+    else return nextPlayPos;
 }
 
 void AudioFormatReaderSource::prepareToPlay (int /*samplesPerBlockExpected*/, double /*sampleRate*/) {}
@@ -64,29 +73,47 @@ void AudioFormatReaderSource::getNextAudioBlock (const AudioSourceChannelInfo& i
     if (info.numSamples <= 0)
         return;
 
-    for (auto destOffset = 0; destOffset < info.numSamples;)
+    const int64 start = nextPlayPos;
+
+    if (looping)
     {
-        const auto readFrom = looping ? nextPlayPos % reader->lengthInSamples : nextPlayPos;
+        // TODO - crossfade loop boundary if possible
+        const int64 loopstart = loopStartPos;
+        const int64 newStart = start > loopstart ? ((start - loopstart) % loopLen) + loopstart : start;
+        const int64 newEnd = start + info.numSamples > loopstart ? ((start + info.numSamples - loopstart) % loopLen) + loopstart : start + info.numSamples;
 
-        const auto numSamplesToRead = jlimit ((int64) 0,
-                                              (int64) (info.numSamples - destOffset),
-                                              reader->lengthInSamples - readFrom);
-
-        reader->read (info.buffer, info.startSample + destOffset,
-                      (int) numSamplesToRead, readFrom, true, true);
-
-        destOffset += (int) numSamplesToRead;
-        nextPlayPos += numSamplesToRead;
-
-        if (! looping)
+        if (newEnd > newStart)
         {
-            const auto numSamplesToClear = info.numSamples - destOffset;
-            info.buffer->clear (info.startSample + destOffset, numSamplesToClear);
-
-            destOffset += numSamplesToClear;
-            nextPlayPos += numSamplesToClear;
+            reader->read (info.buffer, info.startSample,
+                          (int) (newEnd - newStart), newStart, true, true);
         }
+        else
+        {
+            const int endSamps = (int) ((loopstart + loopLen) - newStart);
+
+            reader->read (info.buffer, info.startSample,
+                          endSamps, newStart, true, true);
+
+            reader->read (info.buffer, info.startSample + endSamps,
+                          (int) (newEnd - loopstart), loopstart, true, true);
+        }
+
+        nextPlayPos = newEnd;
+        // DBG(String::formatted("Next playpos: %Ld", nextPlayPos));
     }
+    else
+    {
+        const auto samplesToRead = jlimit (int64{},
+                                           (int64) info.numSamples,
+                                           reader->lengthInSamples - start);
+
+        reader->read (info.buffer, info.startSample, (int) samplesToRead, start, true, true);
+        info.buffer->clear ((int) (info.startSample + samplesToRead),
+                            (int) (info.numSamples - samplesToRead));
+
+        nextPlayPos += info.numSamples;
+    }
+
 }
 
 #if JUCE_UNIT_TESTS
