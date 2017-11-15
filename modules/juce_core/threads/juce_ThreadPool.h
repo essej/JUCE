@@ -123,7 +123,7 @@ public:
 
         @see shouldExit()
     */
-    void signalJobShouldExit();
+    virtual void signalJobShouldExit();
 
     /** Add a listener to this thread job which will receive a callback when
         signalJobShouldExit was called on this thread job.
@@ -402,4 +402,4 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThreadPool)
 };
 
-} // namespace juce
+} // namespace juce
