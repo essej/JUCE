@@ -136,12 +136,50 @@ public:
                                              index, owner);
     }
 
-    void mouseDown (const MouseEvent& e) override
+    bool isInDragToScrollViewport() const noexcept
     {
-        owner.selectRowsBasedOnModifierKeys (index, e.mods, true);
-        owner.sendMouseClickMessage (file, e);
+        if (auto* vp = owner.getViewport())
+            return vp->getScrollOnDragMode() != Viewport::ScrollOnDragMode::never  && (vp->canScrollVertically() || vp->canScrollHorizontally());
+
+        return false;
     }
 
+    void mouseDown (const MouseEvent& e) override
+    {
+        selectRowOnMouseUp = false;
+        isDraggingToScroll = false;
+        
+        if (isEnabled())
+        {
+            if (owner.getRowSelectedOnMouseDown() && ! (owner.isRowSelected(index) || isInDragToScrollViewport())) {
+                //performSelection (e, false);
+                owner.selectRowsBasedOnModifierKeys (index, e.mods, true);
+                owner.sendMouseClickMessage (file, e);
+
+            }
+            else
+                selectRowOnMouseUp = true;
+        }
+        
+    }
+    
+    void mouseDrag (const MouseEvent& e) override
+    {
+        if (! isDraggingToScroll)
+            if (auto* vp = owner.getViewport())
+                isDraggingToScroll = vp->isCurrentlyScrollingOnDrag();
+
+    }
+    
+    void mouseUp (const MouseEvent& e) override
+    {
+        if (isEnabled() && selectRowOnMouseUp && ! (/*isDragging || */ isDraggingToScroll)) {
+            owner.selectRowsBasedOnModifierKeys (index, e.mods, true);
+            owner.sendMouseClickMessage (file, e);
+            //performSelection (e, true);
+        }
+    }
+    
     void mouseDoubleClick (const MouseEvent&) override
     {
         owner.sendDoubleClickMessage (file);
@@ -216,6 +254,8 @@ private:
     Image icon;
     int index = 0;
     bool highlighted = false, isDirectory = false;
+    bool selectRowOnMouseUp;
+    bool isDraggingToScroll;
 
     std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override
     {
