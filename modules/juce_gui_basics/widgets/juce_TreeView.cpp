@@ -289,6 +289,14 @@ public:
         triggerAsyncUpdate();
     }
 
+    bool isInDragToScrollViewport() const noexcept
+    {
+        if (auto* vp = owner.getViewport())
+            return vp->isScrollOnDragEnabled() && (vp->canScrollVertically() || vp->canScrollHorizontally());
+
+        return false;
+    }
+
     String getTooltip() override
     {
         if (auto* itemComponent = getItemComponentAt (getMouseXYRelative()))
@@ -435,6 +443,7 @@ private:
         isDragging = false;
         scopedScrollDisabler = nullopt;
         needSelectionOnMouseUp = false;
+        isDraggingToScroll = false;
 
         if (! isEnabled())
             return;
@@ -538,6 +547,10 @@ private:
                 }
             }
         }
+
+        if (! isDraggingToScroll)
+            if (auto* vp = owner.getViewport())
+                isDraggingToScroll = vp->isCurrentlyScrollingOnDrag();
     }
 
     void mouseMoveInternal (const MouseEvent& e)  { updateItemUnderMouse (e); }
