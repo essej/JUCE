@@ -467,8 +467,18 @@ void Button::paint (Graphics& g)
 void Button::mouseEnter (const MouseEvent&)     { updateState (true,  false); }
 void Button::mouseExit (const MouseEvent&)      { updateState (false, false); }
 
+bool Button::isInDragToScrollViewport() const noexcept
+{
+    if (auto* vp = findParentComponentOfClass<Viewport>())
+        return vp->isScrollOnDragEnabled() && (vp->canScrollVertically() || vp->canScrollHorizontally());
+    
+    return false;
+}
+
 void Button::mouseDown (const MouseEvent& e)
 {
+    isInDraggableViewport = isInDragToScrollViewport();
+    isDraggingToScroll = false;
     updateState (true, true);
 
     if (isDown())
@@ -487,7 +497,7 @@ void Button::mouseUp (const MouseEvent& e)
     const auto wasOver = isOver();
     updateState (isMouseSourceOver (e), false);
 
-    if (wasDown && wasOver && ! triggerOnMouseDown)
+    if (wasDown && wasOver && ! triggerOnMouseDown && ! isDraggingToScroll)
     {
         if (lastStatePainted != buttonDown)
             flashButtonState();
@@ -508,6 +518,10 @@ void Button::mouseDrag (const MouseEvent& e)
 
     if (autoRepeatDelay >= 0 && buttonState != oldState && isDown())
         callbackHelper->startTimer (autoRepeatSpeed);
+        
+    if (isInDraggableViewport && ! isDraggingToScroll)
+        if (auto* vp = findParentComponentOfClass<Viewport>())
+            isDraggingToScroll = vp->isCurrentlyScrollingOnDrag();
 }
 
 bool Button::isMouseSourceOver (const MouseEvent& e)
