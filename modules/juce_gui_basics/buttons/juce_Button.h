@@ -532,6 +532,7 @@ private:
     bool isKeyDown = false;
     bool triggerOnMouseDown = false;
     bool generateTooltip = false;
+    bool isInDraggableViewport = false ,isDraggingToScroll = false;
 
     void checkToggleableState (bool wasToggleable);
 
@@ -552,6 +553,8 @@ private:
 
     bool isMouseSourceOver (const MouseEvent& e);
 
+    bool isInDragToScrollViewport() const noexcept;
+    
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Button)
 };
 
