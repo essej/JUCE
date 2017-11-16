@@ -280,6 +280,16 @@ void ComboBox::setSelectedId (const int newItemId, const NotificationType notifi
         lastCurrentId = newItemId;
         currentId = newItemId;
 
+        if (image) {
+            removeChildComponent(image);
+            image = nullptr;
+        }
+        if (item != nullptr && item->image != nullptr) {
+            image = item->image->createCopy();
+            addAndMakeVisible(image);
+            resized();
+        }
+        
         repaint();  // for the benefit of the 'none selected' text
 
         sendChange (notification);
@@ -392,7 +402,7 @@ void ComboBox::paint (Graphics& g)
 void ComboBox::resized()
 {
     if (getHeight() > 0 && getWidth() > 0)
-        getLookAndFeel().positionComboBoxText (*this, *label);
+        getLookAndFeel().positionComboBoxText (*this, *label, image);
 }
 
 void ComboBox::enablementChanged()

@@ -389,7 +389,7 @@ public:
 
         virtual Label* createComboBoxTextBox (ComboBox&) = 0;
 
-        virtual void positionComboBoxText (ComboBox&, Label& labelToPosition) = 0;
+        virtual void positionComboBoxText (ComboBox&, Label& labelToPosition, Drawable * image = nullptr) = 0;
 
         virtual PopupMenu::Options getOptionsForComboBoxPopupMenu (ComboBox&, Label&) = 0;
 
@@ -459,6 +459,8 @@ private:
     String textWhenNothingSelected, noChoicesMessage;
     EditableState labelEditableState = editableUnknown;
 
+    ScopedPointer<Drawable> image;
+    
     PopupMenu::Item* getItemForId (int) const noexcept;
     PopupMenu::Item* getItemForIndex (int) const noexcept;
     bool selectIfEnabled (int index);
