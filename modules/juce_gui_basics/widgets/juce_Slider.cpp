@@ -628,7 +628,7 @@ public:
             auto setupButton = [&] (Button& b, bool isIncrement)
             {
                 owner.addAndMakeVisible (b);
-                b.onClick = [this, isIncrement] { incrementOrDecrement (isIncrement ? normRange.interval : -normRange.interval); };
+                b.onClick = [this, isIncrement] { incrementOrDecrement (isIncrement ? incDecInterval : -incDecInterval); };
 
                 if (incDecButtonMode != incDecButtonsNotDraggable)
                     b.addMouseListener (&owner, false);
@@ -1319,6 +1319,7 @@ public:
     double valueWhenLastDragged = 0, valueOnMouseDown = 0, lastAngle = 0;
     double velocityModeSensitivity = 1.0, velocityModeOffset = 0, minMaxDiff = 0;
     int velocityModeThreshold = 1;
+    double incDecInterval = 0;
     RotaryParameters rotaryParams;
     Point<float> mouseDragStartPos, mousePosWhenLastDragged;
     int sliderRegionStart = 0, sliderRegionSize = 1;
@@ -1586,6 +1587,8 @@ Range<double> Slider::getRange() const noexcept                         { return
 double Slider::getMaximum() const noexcept                              { return pimpl->normRange.end; }
 double Slider::getMinimum() const noexcept                              { return pimpl->normRange.start; }
 double Slider::getInterval() const noexcept                             { return pimpl->normRange.interval; }
+void Slider::setIncDecModeInterval(double ival)  {  pimpl->incDecInterval = ival; }
+double Slider::getIncDecModeInterval() const noexcept { return pimpl->incDecInterval; }
 
 void Slider::setRange (double newMin, double newMax, double newInt)      { pimpl->setRange (newMin, newMax, newInt); }
 void Slider::setRange (Range<double> newRange, double newInt)            { pimpl->setRange (newRange.getStart(), newRange.getEnd(), newInt); }
