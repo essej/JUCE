@@ -101,8 +101,8 @@ public:
     operator SLObjectItf() noexcept                         { return (cb == nullptr ? nullptr :  cb->ptr.get()); }
 
     //==============================================================================
-    bool operator== (nullptr_t) const noexcept              { return (cb == nullptr || cb->ptr == nullptr); }
-    bool operator!= (nullptr_t) const noexcept              { return (cb != nullptr && cb->ptr != nullptr); }
+    bool operator== (std::nullptr_t) const noexcept         { return (cb == nullptr || cb->ptr == nullptr); }
+    bool operator!= (std::nullptr_t) const noexcept         { return (cb != nullptr && cb->ptr != nullptr); }
 
 private:
     //==============================================================================
