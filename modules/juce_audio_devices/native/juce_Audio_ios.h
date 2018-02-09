@@ -89,6 +89,8 @@ public:
    #endif
     void switchApplication();
 
+    bool isHeadphonesConnected() const;
+    
 private:
     //==============================================================================
     iOSAudioIODevice (iOSAudioIODeviceType*, const String&, const String&);
