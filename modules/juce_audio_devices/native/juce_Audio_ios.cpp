@@ -197,7 +197,7 @@ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 - (void) handleRouteChange: (NSNotification*) notification
 {
     NSUInteger value;
-
+    
     if (juce::getNotificationValueForKey (notification, AVAudioSessionRouteChangeReasonKey, value))
         audioSessionHolder->handleRouteChange ((AVAudioSessionRouteChangeReason) value);
 }
@@ -1321,10 +1321,12 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
 
     // If the routing is set to go through the receiver (i.e. the speaker, but quiet), this re-routes it
     // to make it loud. Needed because by default when using an input + output, the output is kept quiet.
-    static void fixAudioRouteIfSetToReceiver()
+    void fixAudioRouteIfSetToReceiver()
     {
         auto session = [AVAudioSession sharedInstance];
         auto route = session.currentRoute;
+
+        headphonesConnected = false;
 
         for (AVAudioSessionPortDescription* port in route.outputs)
         {
@@ -1333,6 +1335,10 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
                 JUCE_NSERROR_CHECK ([session overrideOutputAudioPort: AVAudioSessionPortOverrideSpeaker
                                                                error: &error]);
                 setAudioSessionActive (true);
+            }
+            
+            if ([[port portType] isEqualToString:AVAudioSessionPortHeadphones]) {
+                headphonesConnected = true;
             }
         }
     }
@@ -1597,7 +1603,8 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
     static inline LruCache<String, Array<double>> deviceSampleRatesCache;
 
     bool interAppAudioConnected = false;
-
+    bool headphonesConnected = false;
+    
     MidiMessageCollector* messageCollector = nullptr;
 
     WeakReference<iOSAudioIODeviceType> deviceType;
@@ -1676,6 +1683,9 @@ Image iOSAudioIODevice::getIcon (int size)                          { return pim
 #endif
 void iOSAudioIODevice::switchApplication()                          { return pimpl->switchApplication(); }
 
+bool iOSAudioIODevice::isHeadphonesConnected() const                { return pimpl->headphonesConnected; }
+
+    
 //==============================================================================
 iOSAudioIODeviceType::iOSAudioIODeviceType()
     : AudioIODeviceType (iOSAudioDeviceName)
