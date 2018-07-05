@@ -932,7 +932,10 @@ public:
              << ", nativeBufferSize = " << AndroidHighPerformanceAudioHelpers::getNativeBufferSizeHint()
              << ", nativeSampleRate = " << AndroidHighPerformanceAudioHelpers::getNativeSampleRate()
              << ", actualBufferSize = " << actualBufferSize
+             << ", totalPreferredSize = " << totalPreferredBufferSize
+             << ", passedInBufferSize = " << bufferSize
              << ", audioBuffersToEnqueue = " << audioBuffersToEnqueue
+             << ", canusehighperf = " << (int) useHighPerformanceAudioPath
              << ", sampleRate = " << sampleRate
              << ", supportsFloatingPoint = " << (session != nullptr && session->supportsFloatingPoint() ? "true" : "false"));
 
