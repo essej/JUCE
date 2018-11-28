@@ -1319,7 +1319,7 @@ public:
     double valueWhenLastDragged = 0, valueOnMouseDown = 0, lastAngle = 0;
     double velocityModeSensitivity = 1.0, velocityModeOffset = 0, minMaxDiff = 0;
     int velocityModeThreshold = 1;
-    double incDecInterval = 0;
+    double incDecInterval = 1;
     RotaryParameters rotaryParams;
     Point<float> mouseDragStartPos, mousePosWhenLastDragged;
     int sliderRegionStart = 0, sliderRegionSize = 1;
