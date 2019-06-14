@@ -787,6 +787,26 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
         return session.mode == mode;
     }
 
+    bool setInputGain(float val)
+    {
+        NSError * err;
+        
+        JUCE_IOS_AUDIO_LOG("Input gain is settable: "<< (int) [[AVAudioSession sharedInstance] isInputGainSettable]);
+        
+        if (![[AVAudioSession sharedInstance] setInputGain:val error:&err]) {
+            JUCE_IOS_AUDIO_LOG("Error setting input gain: " << err.description);
+        }
+        else {
+            return true;
+        }
+        return false;
+    }
+    
+    float getInputGain() const
+    {
+        return [[AVAudioSession sharedInstance] inputGain];
+    }
+    
     //==============================================================================
     class PlayHead final : public AudioPlayHead
     {
@@ -1000,6 +1020,17 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
         if (isRunning)
             invokeAudioDeviceErrorCallback (reasonString);
 
+        auto session = [AVAudioSession sharedInstance];
+        auto route = session.currentRoute;
+        headphonesConnected = false;
+        for (AVAudioSessionPortDescription* port in route.outputs)
+        {           
+            if ([[port portType] isEqualToString:AVAudioSessionPortHeadphones] 
+                || [[port portType] isEqualToString:AVAudioSessionPortHeadsetMic]) { 
+                headphonesConnected = true;
+            }
+        }
+        
         switch (reason)
         {
         case AVAudioSessionRouteChangeReasonCategoryChange:
@@ -1337,7 +1368,8 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
                 setAudioSessionActive (true);
             }
             
-            if ([[port portType] isEqualToString:AVAudioSessionPortHeadphones]) {
+            if ([[port portType] isEqualToString:AVAudioSessionPortHeadphones] 
+                || [[port portType] isEqualToString:AVAudioSessionPortHeadsetMic]) { 
                 headphonesConnected = true;
             }
         }
@@ -1684,6 +1716,9 @@ Image iOSAudioIODevice::getIcon (int size)                          { return pim
 void iOSAudioIODevice::switchApplication()                          { return pimpl->switchApplication(); }
 
 bool iOSAudioIODevice::isHeadphonesConnected() const                { return pimpl->headphonesConnected; }
+
+bool iOSAudioIODevice::setInputGain (float val)  { return pimpl->setInputGain(val); }
+float iOSAudioIODevice::getInputGain () const  { return pimpl->getInputGain(); }
 
     
 //==============================================================================
