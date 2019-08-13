@@ -312,8 +312,10 @@ jfieldID JNIClassBase::resolveStaticField (JNIEnv* env, const char* fieldName, c
 
 void JNIClassBase::resolveCallbacks (JNIEnv* env, const Array<JNINativeMethod>& nativeCallbacks)
 {
-    if (nativeCallbacks.size() > 0)
+    if (nativeCallbacks.size() > 0) {
+        //DBG(String::formatted("resolveCallbacks %d  for %s", nativeCallbacks.size(),  classPath));
         env->RegisterNatives (classRef, nativeCallbacks.begin(), (jint) nativeCallbacks.size());
+    }
 }
 
 //==============================================================================
