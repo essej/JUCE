@@ -692,7 +692,7 @@ private:
                 {
                     // Input & output sample rates should match!
                     jassert (inputStream->getNativeStream()->getSampleRate()
-                               == outputStream->getNativeStream()->getSampleRate());
+                               == outputStream->getNativeStream()->getSampleRate());                    
                 }
 
                 checkStreamSetup (inputStream.get(), inputDeviceId, numInputChannels,
@@ -981,6 +981,8 @@ private:
 
                     audioCallbackGuard.set (0);
                     streamRestartGuard.set (0);
+                    
+                    //owner.lastError = "Disconnected";
                 }
             }
         }
