@@ -608,6 +608,8 @@ UIViewComponentPeer::UIViewComponentPeer (Component& comp, int windowStyleFlags,
         window.rootViewController = controller;
 
         window.hidden = true;
+        //window.autoresizesSubviews = YES; //NO; // needed for iOS 13 for some reason
+        //window.transform = Orientations::getCGTransformFor (Desktop::getInstance().getCurrentOrientation());
         window.opaque = component.isOpaque();
         window.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent: 0];
 
