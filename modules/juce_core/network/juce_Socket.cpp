@@ -645,9 +645,6 @@ DatagramSocket::DatagramSocket (bool canBroadcast)
 
 DatagramSocket::~DatagramSocket()
 {
-    if (lastServerAddress != nullptr)
-        freeaddrinfo (static_cast<struct addrinfo*> (lastServerAddress));
-
     shutdown();
 }
 
@@ -729,25 +726,36 @@ int DatagramSocket::write (const String& remoteHostname, int remotePortNumber,
     if (handle < 0)
         return -1;
 
-    struct addrinfo*& info = reinterpret_cast<struct addrinfo*&> (lastServerAddress);
+    if (!lastRemotePeer || lastRemotePeer->hostname != remoteHostname || lastRemotePeer->port != remotePortNumber) {
+        // getaddrinfo can be quite slow so cache the result of the address lookup for at least the most recent
+        // so create new cached last remote peer
+        lastRemotePeer = std::make_unique<RemoteAddrInfo>(remoteHostname, remotePortNumber);
+    }
 
-    // getaddrinfo can be quite slow so cache the result of the address lookup
-    if (info == nullptr || remoteHostname != lastServerHost || remotePortNumber != lastServerPort)
-    {
-        if (info != nullptr)
-            freeaddrinfo (info);
+    struct addrinfo* info = reinterpret_cast<struct addrinfo*> (lastRemotePeer->getAddrInfo());        
 
-        if ((info = SocketHelpers::getAddressInfo (true, remoteHostname, remotePortNumber)) == nullptr)
-            return -1;
+    return (int) ::sendto (handle, (const char*) sourceBuffer,
+                           (juce_recvsend_size_t) numBytesToWrite, 0,
+                           info->ai_addr, (socklen_t) info->ai_addrlen);
+}
 
-        lastServerHost = remoteHostname;
-        lastServerPort = remotePortNumber;
+int DatagramSocket::write (DatagramSocket::RemoteAddrInfo & remotePeerToken,
+              const void* sourceBuffer, int numBytesToWrite)
+{
+    if (handle < 0)
+        return -1;
+
+    struct addrinfo* info = reinterpret_cast<struct addrinfo*> (remotePeerToken.getAddrInfo());
+
+    if (info == nullptr) {
+        return -1;
     }
 
     return (int) ::sendto (handle, (const char*) sourceBuffer,
                            (juce_recvsend_size_t) numBytesToWrite, 0,
                            info->ai_addr, (socklen_t) info->ai_addrlen);
 }
+
 
 bool DatagramSocket::joinMulticast (const String& multicastIPAddress)
 {
@@ -790,6 +798,30 @@ bool DatagramSocket::setEnablePortReuse (bool enabled)
 
     return false;
 }
+
+DatagramSocket::RemoteAddrInfo::RemoteAddrInfo(const String& remoteHostname, int remotePortNumber)
+{
+    jassert (SocketHelpers::isValidPortNumber (remotePortNumber));
+
+    struct addrinfo* info = 0;
+    if ((info = SocketHelpers::getAddressInfo (true, remoteHostname, remotePortNumber)) == nullptr) {
+        // error
+        addrInfo = 0;
+        return;
+    }
+    
+    hostname = remoteHostname;
+    port = remotePortNumber;
+    addrInfo = info;
+}
+
+DatagramSocket::RemoteAddrInfo::~RemoteAddrInfo()
+{
+    if (addrInfo) {
+        freeaddrinfo (static_cast<struct addrinfo*> (addrInfo));
+    }
+}
+
 
 #if JUCE_MSVC
  #pragma warning (pop)
@@ -863,5 +895,6 @@ struct SocketTests : public UnitTest
 static SocketTests socketTests;
 
 #endif
+
 
 } // namespace juce

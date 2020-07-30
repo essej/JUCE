@@ -573,6 +573,7 @@ static IPAddress makeAddress (const sockaddr_in *addr_in)
 struct InterfaceInfo
 {
     IPAddress interfaceAddress, broadcastAddress;
+    String name;
 };
 
 static Array<InterfaceInfo> findIPAddresses (int dummySocket)
@@ -609,7 +610,8 @@ static Array<InterfaceInfo> findIPAddresses (int dummySocket)
             {
                 if (ioctl (dummySocket, SIOCGIFBRDADDR, &item) == 0)
                     info.broadcastAddress = makeAddress (reinterpret_cast<const sockaddr_in*> (&item.ifr_broadaddr));
-
+                info.name = item.ifr_name;
+                
                 result.add (info);
             }
         }
@@ -638,6 +640,12 @@ void IPAddress::findAllAddresses (Array<IPAddress>& result, bool /*includeIPv6*/
 {
     for (auto& a : findIPAddresses())
         result.add (a.interfaceAddress);
+}
+
+void IPAddress::findAllInterfaceAddresses (Array<IPAddressInterfaceNamePair>& result, bool /* includeIPv6 */)
+{
+    for (auto& a : findIPAddresses())
+        result.add (IPAddressInterfaceNamePair(a.interfaceAddress, a.name));
 }
 
 IPAddress IPAddress::getInterfaceBroadcastAddress (const IPAddress& address)
