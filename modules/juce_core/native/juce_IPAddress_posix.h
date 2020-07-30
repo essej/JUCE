@@ -78,6 +78,18 @@ namespace
         return IPAddress (ntohl (addr_in->sin_addr.s_addr));
     }
 
+    struct InterfaceInfo
+    {
+        IPAddress interfaceAddress, broadcastAddress;
+        String name;
+    };
+
+    bool operator== (const InterfaceInfo& lhs, const InterfaceInfo& rhs)
+    {
+        return lhs.interfaceAddress == rhs.interfaceAddress
+            && lhs.broadcastAddress == rhs.broadcastAddress;
+    }
+
     bool populateInterfaceInfo (struct ifaddrs* ifa, InterfaceInfo& interfaceInfo)
     {
         if (ifa->ifa_addr != nullptr)
@@ -91,6 +103,7 @@ namespace
                 {
                     interfaceInfo.interfaceAddress = makeAddress (interfaceAddressInfo);
                     interfaceInfo.broadcastAddress = makeAddress (broadcastAddressInfo);
+                    interfaceInfo.name = ifa->ifa_name;
                     return true;
                 }
             }
@@ -98,6 +111,7 @@ namespace
             {
                 interfaceInfo.interfaceAddress = makeAddress (unalignedPointerCast<sockaddr_in6*> (ifa->ifa_addr));
                 interfaceInfo.broadcastAddress = makeAddress (unalignedPointerCast<sockaddr_in6*> (ifa->ifa_dstaddr));
+                interfaceInfo.name = ifa->ifa_name;
                 return true;
             }
         }
@@ -138,6 +152,13 @@ void IPAddress::findAllAddresses (Array<IPAddress>& result, bool includeIPv6)
     for (auto& i : getAllInterfaceInfo())
         if (includeIPv6 || ! i.interfaceAddress.isIPv6)
             result.addIfNotAlreadyThere (i.interfaceAddress);
+}
+
+void IPAddress::findAllInterfaceAddresses (Array<IPAddressInterfaceNamePair>& result, bool includeIPv6)
+{
+    for (auto& i : getAllInterfaceInfo())
+        if (includeIPv6 || ! i.interfaceAddress.isIPv6)
+            result.addIfNotAlreadyThere (IPAddressInterfaceNamePair(i.interfaceAddress, i.name));
 }
 
 IPAddress IPAddress::getInterfaceBroadcastAddress (const IPAddress& interfaceAddress)
