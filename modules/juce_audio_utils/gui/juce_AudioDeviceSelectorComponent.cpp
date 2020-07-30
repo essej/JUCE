@@ -166,9 +166,9 @@ public:
         {
             g.setColour (Colours::grey);
             g.setFont (0.5f * (float) getRowHeight());
-            g.drawText (noItemsMessage,
+            g.drawFittedText (noItemsMessage,
                         0, 0, getWidth(), getHeight() / 2,
-                        Justification::centred, true);
+                        Justification::centred, 1);
         }
     }
 
@@ -307,9 +307,24 @@ public:
     {
         Rectangle<int> r (proportionOfWidth (0.35f), 0, proportionOfWidth (0.6f), 3000);
 
-        const int maxListBoxHeight = 100;
+        const int maxListBoxHeight = 75; // 100;
         const int h = parent.getItemHeight();
         const int space = h / 4;
+#if (JUCE_IOS || JUCE_ANDROID)
+        const int listRowHeight = jmin (36, h);
+#else
+        const int listRowHeight = jmin (22, h);
+#endif
+
+        if (inputDeviceDropDown != nullptr)
+        {
+            auto row = r.removeFromTop (h);
+
+            inputLevelMeter->setBounds (row.removeFromRight (testButton != nullptr ? testButton->getWidth() : row.getWidth() / 6));
+            row.removeFromRight (space);
+            inputDeviceDropDown->setBounds (row);
+            r.removeFromTop (space);
+        }
 
         if (outputDeviceDropDown != nullptr)
         {
@@ -326,64 +341,70 @@ public:
             r.removeFromTop (space);
         }
 
-        if (inputDeviceDropDown != nullptr)
+        if (inputChanList != nullptr)
         {
-            auto row = r.removeFromTop (h);
+            inputChanList->setRowHeight (listRowHeight);
+            inputChanList->setBounds (r.removeFromTop (inputChanList->getBestHeight (maxListBoxHeight)));
+            auto leftarea = Rectangle<int>(0, inputChanList->getBounds().getY(), r.getX(), inputChanList->getHeight());
+            if (leftarea.getHeight() > 50) {
+                inputChanSelectAllButton->setBounds (leftarea.removeFromBottom (32).reduced (3, 2));
+                inputChanSelectAllButton->setVisible (true);
+            } else {
+                inputChanSelectAllButton->setVisible (false);
+            }
+            inputChanLabel->setBounds (leftarea);
 
-            inputLevelMeter->setBounds (row.removeFromRight (testButton != nullptr ? testButton->getWidth() : row.getWidth() / 6));
-            row.removeFromRight (space);
-            inputDeviceDropDown->setBounds (row);
             r.removeFromTop (space);
         }
 
         if (outputChanList != nullptr)
         {
-            outputChanList->setRowHeight (jmin (22, h));
-            outputChanList->setBounds (r.removeFromTop (outputChanList->getBestHeight (maxListBoxHeight)));
-            outputChanLabel->setBounds (0, outputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
-            r.removeFromTop (space);
-        }
-
-        if (inputChanList != nullptr)
-        {
-            inputChanList->setRowHeight (jmin (22, h));
-            inputChanList->setBounds (r.removeFromTop (inputChanList->getBestHeight (maxListBoxHeight)));
-            inputChanLabel->setBounds (0, inputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
-            r.removeFromTop (space);
+            outputChanList->setRowHeight(listRowHeight);
+            outputChanList->setBounds(r.removeFromTop(outputChanList->getBestHeight(maxListBoxHeight)));
+            auto leftarea = Rectangle<int>(0, outputChanList->getBounds().getY(), r.getX(), outputChanList->getHeight());
+            if (leftarea.getHeight() > 50)
+            {
+                outputChanSelectAllButton->setBounds(leftarea.removeFromBottom(32).reduced(3, 2));
+                outputChanSelectAllButton->setVisible(true);
+            }
+            else
+            {
+                outputChanSelectAllButton->setVisible(false);
+            }
+            outputChanLabel->setBounds(leftarea);
+            r.removeFromTop(space);
         }
 
         r.removeFromTop (space * 2);
 
-        if (showAdvancedSettingsButton != nullptr
-            && sampleRateDropDown != nullptr && bufferSizeDropDown != nullptr)
+        if (showAdvancedSettingsButton != nullptr && sampleRateDropDown != nullptr && bufferSizeDropDown != nullptr)
         {
-            showAdvancedSettingsButton->setBounds (r.removeFromTop (h));
-            r.removeFromTop (space);
+            showAdvancedSettingsButton->setBounds(r.removeFromTop(h));
+            r.removeFromTop(space);
             showAdvancedSettingsButton->changeWidthToFitText();
         }
 
-        auto advancedSettingsVisible = showAdvancedSettingsButton == nullptr
-                                          || showAdvancedSettingsButton->getToggleState();
+        auto advancedSettingsVisible = showAdvancedSettingsButton == nullptr || showAdvancedSettingsButton->getToggleState();
 
         if (sampleRateDropDown != nullptr)
         {
-            sampleRateDropDown->setVisible (advancedSettingsVisible);
+            sampleRateDropDown->setVisible(advancedSettingsVisible);
 
             if (advancedSettingsVisible)
             {
-                sampleRateDropDown->setBounds (r.removeFromTop (h));
-                r.removeFromTop (space);
+                sampleRateDropDown->setBounds(r.removeFromTop(h));
+                r.removeFromTop(space);
             }
         }
 
         if (bufferSizeDropDown != nullptr)
         {
-            bufferSizeDropDown->setVisible (advancedSettingsVisible);
+            bufferSizeDropDown->setVisible(advancedSettingsVisible);
 
             if (advancedSettingsVisible)
             {
-                bufferSizeDropDown->setBounds (r.removeFromTop (h));
-                r.removeFromTop (space);
+                bufferSizeDropDown->setBounds(r.removeFromTop(h));
+                r.removeFromTop(space);
             }
         }
 
@@ -391,24 +412,24 @@ public:
 
         if (showUIButton != nullptr || resetDeviceButton != nullptr)
         {
-            auto buttons = r.removeFromTop (h);
+            auto buttons = r.removeFromTop(h);
 
             if (showUIButton != nullptr)
             {
-                showUIButton->setVisible (advancedSettingsVisible);
-                showUIButton->changeWidthToFitText (h);
-                showUIButton->setBounds (buttons.removeFromLeft (showUIButton->getWidth()));
-                buttons.removeFromLeft (space);
+                showUIButton->setVisible(advancedSettingsVisible);
+                showUIButton->changeWidthToFitText(h);
+                showUIButton->setBounds(buttons.removeFromLeft(showUIButton->getWidth()));
+                buttons.removeFromLeft(space);
             }
 
             if (resetDeviceButton != nullptr)
             {
-                resetDeviceButton->setVisible (advancedSettingsVisible);
-                resetDeviceButton->changeWidthToFitText (h);
-                resetDeviceButton->setBounds (buttons.removeFromLeft (resetDeviceButton->getWidth()));
+                resetDeviceButton->setVisible(advancedSettingsVisible);
+                resetDeviceButton->changeWidthToFitText(h);
+                resetDeviceButton->setBounds(buttons.removeFromLeft(resetDeviceButton->getWidth()));
             }
 
-            r.removeFromTop (space);
+            r.removeFromTop(space);
         }
 
         setSize (getWidth(), r.getY());
@@ -524,7 +545,7 @@ public:
                     outputChanList = std::make_unique<ChannelSelectorListBox> (setup, ChannelSelectorListBox::audioOutputType,
                                                                                TRANS ("(no audio output channels found)"));
                     addAndMakeVisible (outputChanList.get());
-                    outputChanLabel = std::make_unique<Label> (String{}, TRANS ("Active output channels:"));
+                    outputChanLabel = std::make_unique<Label> (String{}, TRANS ("Active Output Channels:"));
                     outputChanLabel->setJustificationType (Justification::centredRight);
                     outputChanLabel->attachToComponent (outputChanList.get(), true);
                 }
@@ -545,7 +566,7 @@ public:
                     inputChanList = std::make_unique<ChannelSelectorListBox> (setup, ChannelSelectorListBox::audioInputType,
                                                                               TRANS ("(no audio input channels found)"));
                     addAndMakeVisible (inputChanList.get());
-                    inputChanLabel = std::make_unique<Label> (String{}, TRANS ("Active input channels:"));
+                    inputChanLabel = std::make_unique<Label> (String{}, TRANS ("Active Input Channels:"));
                     inputChanLabel->setJustificationType (Justification::centredRight);
                     inputChanLabel->attachToComponent (inputChanList.get(), true);
                 }
@@ -789,7 +810,7 @@ private:
             bufferSizeDropDown = std::make_unique<ComboBox>();
             addAndMakeVisible (bufferSizeDropDown.get());
 
-            bufferSizeLabel = std::make_unique<Label> (String{}, TRANS ("Audio buffer size:"));
+            bufferSizeLabel = std::make_unique<Label> (String{}, TRANS ("Audio Buffer Size:"));
             bufferSizeLabel->attachToComponent (bufferSizeDropDown.get(), true);
         }
         else
