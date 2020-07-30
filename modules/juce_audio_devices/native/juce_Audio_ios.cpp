@@ -792,7 +792,7 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
         JUCE_IOS_AUDIO_LOG("Input gain is settable: "<< (int) [[AVAudioSession sharedInstance] isInputGainSettable]);
         
         if (![[AVAudioSession sharedInstance] setInputGain:val error:&err]) {
-            JUCE_IOS_AUDIO_LOG("Error setting input gain: " << err.description);
+            JUCE_IOS_AUDIO_LOG("Error setting input gain: " << String([err.description UTF8String]));
         }
         else {
             return true;
