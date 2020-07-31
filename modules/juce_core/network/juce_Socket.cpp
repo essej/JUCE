@@ -838,6 +838,22 @@ bool DatagramSocket::setEnablePortReuse ([[maybe_unused]] bool enabled)
     return false;
 }
 
+bool DatagramSocket::setReceiveBufferSize (int bufsize)
+{
+    if (handle >= 0) {
+        return SocketHelpers::setOption (handle, SO_RCVBUF, bufsize);
+    }
+    return false;
+}
+
+bool DatagramSocket::setSendBufferSize (int bufsize)
+{
+    if (handle >= 0) {
+        return SocketHelpers::setOption (handle, SO_SNDBUF, bufsize);
+    }
+    return false;
+}
+
 DatagramSocket::RemoteAddrInfo::RemoteAddrInfo(const String& remoteHostname, int remotePortNumber)
 {
     jassert (SocketHelpers::isValidPortNumber (remotePortNumber));

@@ -488,6 +488,17 @@ public:
     */
     bool setEnablePortReuse (bool enabled);
 
+    /** Change the socket's receive buffer size in the system.
+        @returns true if it succeeds.
+     */
+    bool setReceiveBufferSize (int bufsize);
+
+    /** Change the socket's send buffer size in the system.
+        @returns true if it succeeds.
+     */
+    bool setSendBufferSize (int bufsize);
+
+    
 private:
     //==============================================================================
     SocketOptions options;
