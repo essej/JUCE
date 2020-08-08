@@ -279,8 +279,9 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
 
         if (category == AVAudioSessionCategoryPlayAndRecord)
             options |= (AVAudioSessionCategoryOptionDefaultToSpeaker
-                      | AVAudioSessionCategoryOptionAllowBluetooth
-                      | AVAudioSessionCategoryOptionAllowBluetoothA2DP);
+                      // | AVAudioSessionCategoryOptionAllowBluetooth // you don't really want this for an audio app, as using bluetooth input devices SUCKS
+                        | AVAudioSessionCategoryOptionAllowAirPlay
+                        | AVAudioSessionCategoryOptionAllowBluetoothA2DP);
 
         JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance] setCategory: category
                                                              withOptions: options
