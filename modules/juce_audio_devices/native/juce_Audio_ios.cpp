@@ -380,7 +380,7 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
             options |= AVAudioSessionCategoryOptionDefaultToSpeaker
                      | AVAudioSessionCategoryOptionAllowAirPlay
                      | AVAudioSessionCategoryOptionAllowBluetoothA2DP
-                     | bluetoothOption;
+            ; // | bluetoothOption; // you don't really want this for an audio app, as using bluetooth input devices SUCKS. this should be configurable TODO
         }
 
         JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance] setCategory: category
