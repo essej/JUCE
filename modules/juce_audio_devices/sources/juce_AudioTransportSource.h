@@ -170,6 +170,9 @@ public:
     bool isLooping() const override;
 
     /** Implements the PositionableAudioSource method. */
+    void setLooping(bool shouldLoop) override;
+
+    /** Implements the PositionableAudioSource method. */
     void setLoopRange (int64 loopStart, int64 loopLength) override;
 
     /** Implements the PositionableAudioSource method. */
