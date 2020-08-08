@@ -223,6 +223,15 @@ bool AudioTransportSource::isLooping() const
     return positionableSource != nullptr && positionableSource->isLooping();
 }
 
+void AudioTransportSource::setLooping(bool shouldLoop)
+{
+    const ScopedLock sl (callbackLock);
+    if (positionableSource != nullptr) {
+        positionableSource->setLooping(shouldLoop);
+    }
+}
+
+
 void AudioTransportSource::getLoopRange (int64 & loopStart, int64 & loopLength) const
 {
     const ScopedLock sl (callbackLock);

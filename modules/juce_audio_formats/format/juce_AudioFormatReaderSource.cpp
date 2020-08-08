@@ -113,7 +113,6 @@ void AudioFormatReaderSource::getNextAudioBlock (const AudioSourceChannelInfo& i
 
         nextPlayPos += info.numSamples;
     }
-
 }
 
 #if JUCE_UNIT_TESTS
