@@ -667,6 +667,22 @@ bool StreamingSocket::isLocal() const noexcept
     return hostName == "127.0.0.1";
 }
 
+bool StreamingSocket::setReceiveBufferSize (int bufsize)
+{
+    if (handle >= 0) {
+        return SocketHelpers::setOption (handle, SO_RCVBUF, bufsize);
+    }
+    return false;
+}
+
+bool StreamingSocket::setSendBufferSize (int bufsize)
+{
+    if (handle >= 0) {
+        return SocketHelpers::setOption (handle, SO_SNDBUF, bufsize);
+    }
+    return false;
+}
+
 
 //==============================================================================
 //==============================================================================
