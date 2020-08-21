@@ -302,11 +302,14 @@ static bool isKioskModeView (JuceUIViewController* c)
 
     if (juceView == nil || juceView->owner == nullptr)
     {
-        jassertfalse;
+        // jassertfalse;
         return false;
     }
 
-    return Desktop::getInstance().getKioskModeComponent() == &(juceView->owner->getComponent());
+    if (juceView != nil && juceView->owner != nullptr) {
+        return Desktop::getInstance().getKioskModeComponent() == &(juceView->owner->getComponent());
+    }
+    return false;
 }
 
 MultiTouchMapper<UITouch*> UIViewComponentPeer::currentTouches;
