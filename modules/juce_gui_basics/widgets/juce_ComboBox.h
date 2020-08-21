@@ -471,7 +471,7 @@ private:
     String textWhenNothingSelected, noChoicesMessage;
     EditableState labelEditableState = editableUnknown;
 
-    ScopedPointer<Drawable> image;
+    std::unique_ptr<Drawable> image;
     
     PopupMenu::Item* getItemForId (int) const noexcept;
     PopupMenu::Item* getItemForIndex (int) const noexcept;
