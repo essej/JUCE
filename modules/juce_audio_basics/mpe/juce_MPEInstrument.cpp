@@ -46,7 +46,6 @@ MPEInstrument::MPEInstrument() noexcept
     legacyMode.isEnabled = false;
     legacyMode.pitchbendRange = 2;
     legacyMode.channelRange = allChannels;
-    allowNotesOnMasterChannel = false;
 }
 
 MPEInstrument::~MPEInstrument()
@@ -507,21 +506,12 @@ void MPEInstrument::updateNoteTotalPitchbend (MPENote& note)
     else
     {
         auto zone = zoneLayout.getLowerZone();
-        bool masternote = false;
 
-        if (! zone.isUsing (note.midiChannel))        
+        if (! zone.isUsing (note.midiChannel))
         {
             if (zoneLayout.getUpperZone().isUsing (note.midiChannel))
             {
                 zone = zoneLayout.getUpperZone();
-            }
-            else if (allowNotesOnMasterChannel && zoneLayout.getLowerZone().getMasterChannel() == note.midiChannel) {
-                zone = zoneLayout.getLowerZone();
-                masternote = true;
-            }
-            else if (allowNotesOnMasterChannel && zoneLayout.getUpperZone().getMasterChannel() == note.midiChannel) {
-                zone = zoneLayout.getUpperZone();
-                masternote = true;
             }
             else
             {
@@ -540,12 +530,7 @@ void MPEInstrument::updateNoteTotalPitchbend (MPENote& note)
                                                             .asSignedFloat()
                                           * zone.masterPitchbendRange;
 
-        if (masternote) {
-            note.totalPitchbendInSemitones = masterPitchbendInSemitones;            
-        }
-        else {
-            note.totalPitchbendInSemitones = notePitchbendInSemitones + masterPitchbendInSemitones;
-        }
+        note.totalPitchbendInSemitones = notePitchbendInSemitones + masterPitchbendInSemitones;
     }
 }
 
@@ -607,9 +592,6 @@ void MPEInstrument::handleSustainOrSostenuto (int midiChannel, bool isDown, bool
         }
         else
         {
-            if (allowNotesOnMasterChannel)
-                isMemberChannelSustained[midiChannel - 1] = isDown;
-            
             if (zone.isLowerZone())
                 for (auto i = zone.getFirstMemberChannel(); i <= zone.getLastMemberChannel(); ++i)
                     isMemberChannelSustained[i - 1] = isDown;
