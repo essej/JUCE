@@ -294,12 +294,12 @@ void ComboBox::setSelectedId (const int newItemId, const NotificationType notifi
         currentId = newItemId;
 
         if (image) {
-            removeChildComponent(image);
-            image = nullptr;
+            removeChildComponent(image.get());
+            image.reset();
         }
         if (item != nullptr && item->image != nullptr) {
             image = item->image->createCopy();
-            addAndMakeVisible(image);
+            addAndMakeVisible(image.get());
             resized();
         }
         
@@ -415,7 +415,7 @@ void ComboBox::paint (Graphics& g)
 void ComboBox::resized()
 {
     if (getHeight() > 0 && getWidth() > 0)
-        getLookAndFeel().positionComboBoxText (*this, *label, image);
+        getLookAndFeel().positionComboBoxText (*this, *label, image.get());
 }
 
 void ComboBox::enablementChanged()
