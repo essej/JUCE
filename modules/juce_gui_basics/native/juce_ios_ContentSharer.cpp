@@ -77,8 +77,13 @@ public:
                                                                 inDirectory: fileDirectory];
             }
 
-            if (nativeFilePath != nil)
+            if (nativeFilePath != nil) {
                 [urls addObject: [NSURL fileURLWithPath: nativeFilePath]];
+            }
+            else {
+                // just add the URL as-is (eg, NON file URLS like links, etc)
+                [urls addObject: [NSURL URLWithString:juceStringToNS(f.toString(true))]]; 
+            }
         }
 
         share (urls);
