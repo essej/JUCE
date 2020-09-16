@@ -61,12 +61,14 @@ class CallOutBoxCallback  : public ModalComponentManager::Callback,
                             private Timer
 {
 public:
-    CallOutBoxCallback (Component* c, const Rectangle<int>& area, Component* parent)
-        : content (c), callout (*c, area, parent)
+    CallOutBoxCallback (Component* c, const Rectangle<int>& area, Component* parent, bool dismissIfBg)
+        : content (c), callout (*c, area, parent), dismissIfBackgrounded(dismissIfBg)
     {
         callout.setVisible (true);
         callout.enterModalState (true, this);
-        startTimer (200);
+        if (dismissIfBackgrounded) {
+            startTimer (200);
+        }
     }
 
     void modalStateFinished (int) override {}
@@ -79,15 +81,16 @@ public:
 
     std::unique_ptr<Component> content;
     CallOutBox callout;
-
+    bool dismissIfBackgrounded = true;
+    
     JUCE_DECLARE_NON_COPYABLE (CallOutBoxCallback)
 };
 
-CallOutBox& CallOutBox::launchAsynchronously (Component* content, Rectangle<int> area, Component* parent)
+CallOutBox& CallOutBox::launchAsynchronously (Component* content, Rectangle<int> area, Component* parent, bool dismissIfBackgrounded)
 {
     jassert (content != nullptr); // must be a valid content component!
 
-    return (new CallOutBoxCallback (content, area, parent))->callout;
+    return (new CallOutBoxCallback (content, area, parent, dismissIfBackgrounded))->callout;
 }
 
 //==============================================================================
