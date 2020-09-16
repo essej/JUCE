@@ -63,13 +63,15 @@ class CallOutBoxCallback final : public ModalComponentManager::Callback,
                                  private Timer
 {
 public:
-    CallOutBoxCallback (std::unique_ptr<Component> c, const Rectangle<int>& area, Component* parent)
+    CallOutBoxCallback (std::unique_ptr<Component> c, const Rectangle<int>& area, Component* parent, bool dismissIfBg)
         : content (std::move (c)),
-          callout (*content, area, parent)
+          callout (*content, area, parent), dismissIfBackgrounded(dismissIfBg)
     {
         callout.setVisible (true);
         callout.enterModalState (true, this);
-        startTimer (200);
+        if (dismissIfBackgrounded) {
+            startTimer (200);
+        }
     }
 
     void modalStateFinished (int) override {}
@@ -82,15 +84,16 @@ public:
 
     std::unique_ptr<Component> content;
     CallOutBox callout;
+    bool dismissIfBackgrounded = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CallOutBoxCallback)
 };
 
-CallOutBox& CallOutBox::launchAsynchronously (std::unique_ptr<Component> content, Rectangle<int> area, Component* parent)
+CallOutBox& CallOutBox::launchAsynchronously (std::unique_ptr<Component> content, Rectangle<int> area, Component* parent, bool dismissIfBackgrounded)
 {
     jassert (content != nullptr); // must be a valid content component!
 
-    return (new CallOutBoxCallback (std::move (content), area, parent))->callout;
+    return (new CallOutBoxCallback (std::move (content), area, parent, dismissIfBackgrounded))->callout;
 }
 
 //==============================================================================
