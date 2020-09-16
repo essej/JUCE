@@ -121,10 +121,13 @@ public:
                                     parent; otherwise, it's a global screen coord.
         @param parentComponent      if not a nullptr, this is the component to add the call-out to.
                                     If this is a nullptr, the call-out will be added to the desktop.
+        @param dismissIfBackgrounded      If this is true, the call-out will be dismissed if we are no
+                                    longer the foreground app.
     */
     static CallOutBox& launchAsynchronously (std::unique_ptr<Component> contentComponent,
                                              Rectangle<int> areaToPointTo,
-                                             Component* parentComponent);
+                                             Component* parentComponent,
+                                             bool dismissIfBackgrounded=true);
 
     /** Posts a message which will dismiss the callout box asynchronously.
         NB: it's safe to call this method from any thread.
