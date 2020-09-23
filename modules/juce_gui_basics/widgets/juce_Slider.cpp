@@ -233,8 +233,8 @@ public:
             lastValueMin = newValue;
             valueMin = newValue;
             owner.repaint();
-            updatePopupDisplay (newValue);
-
+            //updatePopupDisplay (newValue);
+            updatePopupDisplay(newValue, getMaxValue());
             triggerChangeMessage (notification);
         }
     }
@@ -267,7 +267,8 @@ public:
             lastValueMax = newValue;
             valueMax = newValue;
             owner.repaint();
-            updatePopupDisplay (valueMax.getValue());
+            //updatePopupDisplay (valueMax.getValue());
+            updatePopupDisplay(getMinValue(), valueMax.getValue());
 
             triggerChangeMessage (notification);
         }
@@ -740,12 +741,13 @@ public:
         if (style == RotaryHorizontalDrag
             || style == RotaryVerticalDrag
             || style == IncDecButtons
-            || ((style == LinearHorizontal || style == LinearVertical || style == LinearBar || style == LinearBarVertical)
+            || ((style == LinearHorizontal || style == LinearVertical || style == LinearBar || style == LinearBarVertical || style == TwoValueHorizontal || style == TwoValueVertical)
                 && ! snapsToMousePos))
         {
             auto mouseDiff = (style == RotaryHorizontalDrag
                                 || style == LinearHorizontal
                                 || style == LinearBar
+                                || style == TwoValueHorizontal
                                 || (style == IncDecButtons && incDecDragDirectionIsHorizontal()))
                               ? e.position.x - mouseDragStartPos.x
                               : mouseDragStartPos.y - e.position.y;
@@ -975,8 +977,9 @@ public:
                                 && (Time::getMillisecondCounterHiRes() - lastPopupDismissal) > 250;
 
         if (shouldShowPopup
-             && ! isTwoValue()
-             && ! isThreeValue())
+           //  && ! isTwoValue()
+           //  && ! isThreeValue()
+            )
         {
             if (owner.isMouseOver (true))
             {
@@ -1013,8 +1016,16 @@ public:
             if (style == SliderStyle::TwoValueHorizontal
                 || style == SliderStyle::TwoValueVertical)
             {
-                updatePopupDisplay (sliderBeingDragged == 2 ? getMaxValue()
-                                                            : getMinValue());
+                //updatePopupDisplay (sliderBeingDragged == 2 ? getMaxValue()
+                //                                            : getMinValue());
+                updatePopupDisplay (getMinValue(), getMaxValue());
+            }
+            else if (style == SliderStyle::ThreeValueHorizontal
+                || style == SliderStyle::ThreeValueVertical)
+            {
+                //updatePopupDisplay (sliderBeingDragged == 2 ? getMaxValue()
+                //                                            : getMinValue());
+                updatePopupDisplay (getMinValue(), getValue(), getMaxValue());
             }
             else
             {
@@ -1031,6 +1042,22 @@ public:
             popupDisplay->updatePosition (owner.getTextFromValue (valueToShow));
     }
 
+    void updatePopupDisplay (double valueToShow, double valueToShow2)
+    {
+        if (popupDisplay != nullptr)
+            popupDisplay->updatePosition (owner.getTextFromValue (valueToShow) + String("\n") + owner.getTextFromValue (valueToShow2));
+    }
+
+    void updatePopupDisplay (double valueToShow, double valueToShow2, double valueToShow3)
+    {
+        if (popupDisplay != nullptr)
+            popupDisplay->updatePosition (owner.getTextFromValue (valueToShow) 
+                                          + String("\n") + owner.getTextFromValue (valueToShow2)
+                                          + String("\n") + owner.getTextFromValue (valueToShow3)
+                                          );
+    }
+
+    
     bool canDoubleClickToValue() const
     {
         return doubleClickToValue
@@ -1324,6 +1351,10 @@ public:
         {
             w = font.getStringWidth (text) + 18;
             h = (int) (font.getHeight() * 1.6f);
+            auto style = owner.getSliderStyle();
+            auto scale = (style == TwoValueHorizontal || style == TwoValueVertical) ? 2 : (style == ThreeValueHorizontal || style == ThreeValueVertical) ? 3 : 1;
+            h *= scale;
+            w /= scale;
         }
 
         void updatePosition (const String& newText)
