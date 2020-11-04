@@ -74,19 +74,27 @@ public:
     /** Implementation of the PositionableAudioSource method. */
     int64 getTotalLength() const override;
 
-    //==============================================================================
+    //==============================================================================    
     /** Implementation of the PositionableAudioSource method. */
     bool isLooping() const override;
 
     /** Implementation of the PositionableAudioSource method. */
     void setLooping (bool shouldLoop) override;
 
+    /** Sets the start position of the looping in samples. */
+    void setLoopRange (int64 loopStart, int64 loopLength);
+    
+    /** Returns the position where the loop playback starts.  */
+    void getLoopRange(int64 & loopStart, int64 & loopLength) const;
+    
 private:
     //==============================================================================
     AudioBuffer<float> buffer;
     int position = 0;
     bool isCurrentlyLooping;
-
+    int64 loopStartPos = 0;
+    int64 loopLen = 0;
+    
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MemoryAudioSource)
 };
