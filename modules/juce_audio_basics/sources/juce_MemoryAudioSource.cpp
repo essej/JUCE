@@ -36,7 +36,7 @@ namespace juce
 {
 
 MemoryAudioSource::MemoryAudioSource (AudioBuffer<float>& bufferToUse, bool copyMemory, bool shouldLoop)
-    : isCurrentlyLooping (shouldLoop)
+    : isCurrentlyLooping (shouldLoop), loopStartPos(0), loopLen(bufferToUse.getNumSamples())
 {
     if (copyMemory)
         buffer.makeCopyOf (bufferToUse);
@@ -114,6 +114,18 @@ bool MemoryAudioSource::isLooping() const
 void MemoryAudioSource::setLooping (bool shouldLoop)
 {
     isCurrentlyLooping = shouldLoop;
+}
+
+void MemoryAudioSource::getLoopRange (int64 & loopStart, int64 & loopLength) const
+{
+    loopStart = loopStartPos;
+    loopLength = loopLen;
+}
+
+void MemoryAudioSource::setLoopRange (int64 loopStart, int64 loopLength)
+{
+    loopStartPos = jlimit((int64)0, (int64) (buffer.getNumSamples()-1) , loopStart);
+    loopLen =  jlimit((int64)1, (int64) (buffer.getNumSamples() - loopStartPos), loopLength);
 }
 
 //==============================================================================
