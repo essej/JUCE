@@ -241,8 +241,12 @@ public:
     void setMinValue (double newValue, NotificationType notification, bool allowNudgingOfOtherValues)
     {
         // The minimum value only applies to sliders that are in two- or three-value mode.
-        jassert (style == TwoValueHorizontal || style == TwoValueVertical
-                  || style == ThreeValueHorizontal || style == ThreeValueVertical);
+        // but since this can actually be called from an async updater after setting the min and max value,
+        // and changing the style, this should be checked and not asserted
+        if (!(style == TwoValueHorizontal || style == TwoValueVertical
+              || style == ThreeValueHorizontal || style == ThreeValueVertical)) {
+            return;
+        }
 
         newValue = constrainedValue (newValue);
 
@@ -274,8 +278,12 @@ public:
     void setMaxValue (double newValue, NotificationType notification, bool allowNudgingOfOtherValues)
     {
         // The maximum value only applies to sliders that are in two- or three-value mode.
-        jassert (style == TwoValueHorizontal || style == TwoValueVertical
-                  || style == ThreeValueHorizontal || style == ThreeValueVertical);
+        // but since this can actually be called from an async updater after setting the min and max value,
+        // and changing the style, this should be checked and not asserted
+        if (!(style == TwoValueHorizontal || style == TwoValueVertical
+              || style == ThreeValueHorizontal || style == ThreeValueVertical)) {
+            return;
+        }
 
         newValue = constrainedValue (newValue);
 
@@ -307,9 +315,13 @@ public:
 
     void setMinAndMaxValues (double newMinValue, double newMaxValue, NotificationType notification)
     {
-        // The maximum value only applies to sliders that are in two- or three-value mode.
-        jassert (style == TwoValueHorizontal || style == TwoValueVertical
-                  || style == ThreeValueHorizontal || style == ThreeValueVertical);
+        // The min and max value only applies to sliders that are in two- or three-value mode.
+        // but since this can actually be called from an async updater after setting the min and max value,
+        // and changing the style, this should be checked and not asserted
+        if (!(style == TwoValueHorizontal || style == TwoValueVertical
+              || style == ThreeValueHorizontal || style == ThreeValueVertical)) {
+            return;
+        }
 
         if (newMaxValue < newMinValue)
             std::swap (newMaxValue, newMinValue);
