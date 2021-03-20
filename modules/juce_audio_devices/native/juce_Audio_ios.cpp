@@ -361,9 +361,9 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
         close();
     }
 
-    static void setAudioSessionCategory (NSString* category)
+    static void setAudioSessionCategory (NSString* category, NSUInteger extraoptions = 0)
     {
-        NSUInteger options = 0;
+        NSUInteger options = extraoptions;
 
        #if ! JUCE_DISABLE_AUDIO_MIXING_WITH_OTHER_APPS
         options |= AVAudioSessionCategoryOptionMixWithOthers; // Alternatively AVAudioSessionCategoryOptionDuckOthers
@@ -700,7 +700,7 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
 
         setAudioSessionActive (true);
         setAudioSessionCategory (requestedInputChannels > 0 ? AVAudioSessionCategoryPlayAndRecord
-                                                            : AVAudioSessionCategoryPlayback);
+                                                            : AVAudioSessionCategoryPlayback, allowBluetoothInput ? AVAudioSessionCategoryOptionAllowBluetooth : 0);
         channelData.reconfigure (requestedInputChannels, requestedOutputChannels);
         setTargetSampleRateAndBufferSize();
         updateHardwareInfo (true);
@@ -804,7 +804,22 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
     {
         return [[AVAudioSession sharedInstance] inputGain];
     }
-    
+
+    void setAllowBluetoothInput(bool flag) {
+        if (allowBluetoothInput != flag) {
+            allowBluetoothInput = flag;
+            if (isRunning) {
+                setAudioSessionCategory( requestedInputChannels > 0 ? AVAudioSessionCategoryPlayAndRecord
+                                        : AVAudioSessionCategoryPlayback, allowBluetoothInput ? AVAudioSessionCategoryOptionAllowBluetooth : 0);
+            }
+        }
+    }
+
+    bool getAllowBluetoothInput() const {
+        return allowBluetoothInput;
+    }
+
+
     //==============================================================================
     class PlayHead final : public AudioPlayHead
     {
@@ -1638,7 +1653,8 @@ struct iOSAudioIODevice::Pimpl final : public AsyncUpdater
 
     bool interAppAudioConnected = false;
     bool headphonesConnected = false;
-    
+    bool allowBluetoothInput = false;
+
     MidiMessageCollector* messageCollector = nullptr;
 
     WeakReference<iOSAudioIODeviceType> deviceType;
@@ -1721,6 +1737,9 @@ bool iOSAudioIODevice::isHeadphonesConnected() const                { return pim
 
 bool iOSAudioIODevice::setInputGain (float val)  { return pimpl->setInputGain(val); }
 float iOSAudioIODevice::getInputGain () const  { return pimpl->getInputGain(); }
+
+bool iOSAudioIODevice::setAllowBluetoothInput (float val)  { return pimpl->setAllowBluetoothInput(val); }
+float iOSAudioIODevice::getAllowBluetoothInput () const  { return pimpl->getAllowBluetoothInput(); }
 
     
 //==============================================================================
