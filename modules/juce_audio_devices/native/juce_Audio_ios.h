@@ -93,7 +93,10 @@ public:
     
     bool setInputGain(float val);
     float getInputGain() const;
-    
+
+    void setAllowBluetoothInput(bool flag);
+    bool getAllowBluetoothInput() const;
+
 private:
     //==============================================================================
     iOSAudioIODevice (iOSAudioIODeviceType*, const String&, const String&);
