@@ -339,6 +339,18 @@ public:
     */
     int getIntAttribute (StringRef attributeName, int defaultReturnValue = 0) const;
 
+    /** Returns the value of a named attribute as an unsigned 64 bit integer.
+
+        This will try to find the attribute and convert it to an integer (using
+        the String::getUInt64Value() method).
+
+        @param attributeName        the name of the attribute to look up
+        @param defaultReturnValue   a value to return if the element doesn't have an attribute
+                                    with this name
+        @see setAttribute
+    */
+    uint64 getUInt64Attribute (StringRef attributeName, uint64 defaultReturnValue = 0) const;
+
     /** Returns the value of a named attribute as floating-point.
 
         This will try to find the attribute and convert it to a double (using
@@ -391,6 +403,20 @@ public:
         @param newValue             the value to set it to
     */
     void setAttribute (const Identifier& attributeName, int newValue);
+
+    /** Adds a named attribute to the element, setting it to an integer value.
+
+        If the element already contains an attribute with this name, it's value will
+        be updated to the new value. If there's no such attribute yet, a new one will
+        be added.
+
+        Note that there are other setAttribute() methods that take integers,
+        doubles, etc. to make it easy to store numbers.
+
+        @param attributeName        the name of the attribute to set
+        @param newValue             the value to set it to
+    */
+    void setAttribute (const Identifier& attributeName, uint64 newValue);
 
     /** Adds a named attribute to the element, setting it to a floating-point value.
 
