@@ -734,6 +734,7 @@ private:
     ItemComponent* itemUnderMouse = nullptr;
     Optional<ScopedDisableViewportScroll> scopedScrollDisabler;
     bool isDragging = false, needSelectionOnMouseUp = false;
+    bool isDraggingToScroll = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ContentComponent)
 };
