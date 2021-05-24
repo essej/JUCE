@@ -629,6 +629,7 @@ private:
     std::vector<std::unique_ptr<ItemComponent>> itemComponents;
     ItemComponent* itemUnderMouse = nullptr;
     bool isDragging = false, needSelectionOnMouseUp = false;
+    bool isDraggingToScroll = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ContentComponent)
 };
