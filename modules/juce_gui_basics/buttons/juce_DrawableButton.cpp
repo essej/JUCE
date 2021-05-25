@@ -181,6 +181,7 @@ void DrawableButton::buttonStateChanged()
         if (currentImage != nullptr)
         {
             currentImage->setInterceptsMouseClicks (false, false);
+            currentImage->setAccessible(false);
             addAndMakeVisible (currentImage);
             resized();
         }
