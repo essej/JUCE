@@ -40,7 +40,7 @@ static double getStepSize (const Slider& slider)
     const auto interval = slider.getInterval();
 
     return ! approximatelyEqual (interval, 0.0) ? interval
-                                                : slider.getRange().getLength() * 0.01;
+                                                : slider.getRange().getLength() * 0.1;
 }
 
 class Slider::Pimpl   : public AsyncUpdater, // this needs to be public otherwise it will cause an
