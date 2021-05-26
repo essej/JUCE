@@ -421,7 +421,7 @@ public:
         };
 
         if (auto* container = getContainer())
-            KeyboardFocusTraverser::getDefaultComponent (container);
+            return KeyboardFocusTraverser::getDefaultComponent (container);
 
         return nullptr;
     }
