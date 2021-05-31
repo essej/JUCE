@@ -119,12 +119,17 @@ public:
         return items.size();
     }
 
-    String getNameForRow (int rowNumber) override
+    String getNameForRow (int row) override
     {
-        if (rowNumber < items.size()) {
-            return items[rowNumber].name;
+        if (isPositiveAndBelow (row, items.size())) {
+            auto item = items[row];
+            bool enabled = deviceManager.isMidiInputDeviceEnabled (item.identifier);
+            if (enabled)
+                return item.name + "," + TRANS("selected");
+            else
+                return item.name;
         }
-        return ListBoxModel::getNameForRow(rowNumber);
+        return ListBoxModel::getNameForRow(row);
     }
 
 
@@ -553,6 +558,7 @@ public:
                 {
                     outputChanList = std::make_unique<ChannelSelectorListBox> (setup, ChannelSelectorListBox::audioOutputType,
                                                                                TRANS ("(no audio output channels found)"));
+                    outputChanList->setTitle(TRANS("Active Output Channels:"));
                     addAndMakeVisible (outputChanList.get());
                     outputChanLabel = std::make_unique<Label> (String{}, TRANS ("Active Output Channels:"));
                     outputChanLabel->setJustificationType (Justification::centredRight);
@@ -574,6 +580,7 @@ public:
                 {
                     inputChanList = std::make_unique<ChannelSelectorListBox> (setup, ChannelSelectorListBox::audioInputType,
                                                                               TRANS ("(no audio input channels found)"));
+                    inputChanList->setTitle(TRANS("Active Input Channels:"));
                     addAndMakeVisible (inputChanList.get());
                     inputChanLabel = std::make_unique<Label> (String{}, TRANS ("Active Input Channels:"));
                     inputChanLabel->setJustificationType (Justification::centredRight);
@@ -906,12 +913,33 @@ public:
             return items.size();
         }
 
-        String getNameForRow (int rowNumber) override
+        String getNameForRow (int row) override
         {
-            if (rowNumber < items.size()) {
-                return items[rowNumber];
+            if (isPositiveAndBelow (row, items.size())) {
+                bool enabled = false;
+                auto config = setup.manager->getAudioDeviceSetup();
+
+                if (setup.useStereoPairs)
+                {
+                    if (type == audioInputType)
+                        enabled = config.inputChannels[row * 2] || config.inputChannels[row * 2 + 1];
+                    else if (type == audioOutputType)
+                        enabled = config.outputChannels[row * 2] || config.outputChannels[row * 2 + 1];
+                }
+                else
+                {
+                    if (type == audioInputType)
+                        enabled = config.inputChannels[row];
+                    else if (type == audioOutputType)
+                        enabled = config.outputChannels[row];
+                }
+
+                if (enabled)
+                    return items[row] + ", " + TRANS("selected") ;
+                else
+                    return items[row];
             }
-            return ListBoxModel::getNameForRow(rowNumber);
+            return ListBoxModel::getNameForRow(row);
         }
 
         void paintListBoxItem (int row, Graphics& g, int width, int height, bool) override
@@ -1140,6 +1168,7 @@ AudioDeviceSelectorComponent::AudioDeviceSelectorComponent (AudioDeviceManager& 
     {
         midiInputsList = std::make_unique <MidiInputSelectorComponentListBox> (deviceManager,
                                                                                "(" + TRANS ("No MIDI inputs available") + ")");
+        midiInputsList->setTitle(TRANS ("Active MIDI inputs:"));
         addAndMakeVisible (midiInputsList.get());
 
         midiInputsLabel = std::make_unique<Label> (String{}, TRANS ("Active MIDI inputs:"));
