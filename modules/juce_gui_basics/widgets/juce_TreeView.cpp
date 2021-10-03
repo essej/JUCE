@@ -67,14 +67,6 @@ public:
         }
     }
 
-    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override
-    {
-        if (hasCustomComponent() && customComponent->getAccessibilityHandler() != nullptr)
-            return nullptr;
-
-        return std::make_unique<ItemAccessibilityHandler> (*this);
-    }
-
     void setMouseIsOverButton (bool isOver)            { mouseIsOverButton = isOver; }
     TreeViewItem& getRepresentedItem() const noexcept  { return item; }
 
@@ -97,6 +89,11 @@ private:
             return itemComponent.getRepresentedItem().getAccessibilityName();
         }
 
+        String getHelp() const override
+        {
+            return itemComponent.getRepresentedItem().getTooltip();
+        }
+
         AccessibleState getCurrentState() const override
         {
             auto& treeItem = itemComponent.getRepresentedItem();
@@ -112,12 +109,14 @@ private:
             }
 
             if (treeItem.mightContainSubItems())
+            {
                 state = state.withExpandable();
 
-            if (treeItem.isOpen())
-                state = state.withExpanded();
-            else
-                state = state.withCollapsed();
+                if (treeItem.isOpen())
+                    state = state.withExpanded();
+                else
+                    state = state.withCollapsed();
+            }
 
             if (treeItem.isSelected())
                 state = state.withSelected();
@@ -217,7 +216,14 @@ private:
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ItemAccessibilityHandler)
     };
 
-    //==============================================================================
+    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override
+    {
+        if (hasCustomComponent() && customComponent->getAccessibilityHandler() != nullptr)
+            return nullptr;
+
+        return std::make_unique<ItemAccessibilityHandler> (*this);
+    }
+
     bool hasCustomComponent() const noexcept  { return customComponent.get() != nullptr; }
 
     TreeViewItem& item;
@@ -237,7 +243,6 @@ class TreeView::ContentComponent  : public Component,
 public:
     ContentComponent (TreeView& tree)  : owner (tree)
     {
-        setAccessible (false);
     }
 
     //==============================================================================
@@ -330,7 +335,7 @@ public:
                 auto newComp = std::make_unique<ItemComponent> (*treeItem);
 
                 addAndMakeVisible (*newComp);
-                newComp->addMouseListener (this, true);
+                newComp->addMouseListener (this, false);
                 componentsToKeep.push_back (newComp.get());
 
                 itemComponents.push_back (std::move (newComp));
@@ -356,6 +361,11 @@ public:
 
 private:
     //==============================================================================
+    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override
+    {
+        return createIgnoredAccessibilityHandler (*this);
+    }
+
     void mouseDownInternal (const MouseEvent& e)
     {
         updateItemUnderMouse (e);
@@ -635,7 +645,8 @@ private:
 };
 
 //==============================================================================
-class TreeView::TreeViewport  : public Viewport
+class TreeView::TreeViewport  : public Viewport,
+                                private Timer
 {
 public:
     TreeViewport() = default;
@@ -659,9 +670,7 @@ public:
         lastX = newVisibleArea.getX();
         updateComponents (hasScrolledSideways);
 
-        if (auto* tree = getParentComponent())
-            if (auto* handler = tree->getAccessibilityHandler())
-                handler->notifyAccessibilityEvent (AccessibilityEvent::structureChanged);
+        startTimer (50);
     }
 
     ContentComponent* getContentComp() const noexcept
@@ -679,6 +688,20 @@ public:
     }
 
 private:
+    std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override
+    {
+        return createIgnoredAccessibilityHandler (*this);
+    }
+
+    void timerCallback() override
+    {
+        stopTimer();
+
+        if (auto* tree = getParentComponent())
+            if (auto* handler = tree->getAccessibilityHandler())
+                handler->notifyAccessibilityEvent (AccessibilityEvent::structureChanged);
+    }
+
     int lastX = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TreeViewport)
@@ -688,7 +711,6 @@ private:
 TreeView::TreeView (const String& name)  : Component (name)
 {
     viewport = std::make_unique<TreeViewport>();
-    viewport->setAccessible (false);
     addAndMakeVisible (viewport.get());
     viewport->setViewedComponent (new ContentComponent (*this));
 

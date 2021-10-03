@@ -35,27 +35,11 @@ public:
                                 codeEditorComponentToWrap.isReadOnly() ? AccessibilityRole::staticText
                                                                        : AccessibilityRole::editableText,
                                 {},
-                                makeInterfaces (codeEditorComponentToWrap))
+                                { std::make_unique<CodeEditorComponentTextInterface> (codeEditorComponentToWrap) })
     {
     }
 
 private:
-    class CodeEditorComponentValueInterface  : public AccessibilityTextValueInterface
-    {
-    public:
-        explicit CodeEditorComponentValueInterface (CodeEditorComponent& codeEditorComponentToWrap)
-            : codeEditorComponent (codeEditorComponentToWrap)
-        {
-        }
-
-        bool isReadOnly() const override                 { return true; }
-        String getCurrentValueAsString() const override  { return codeEditorComponent.document.getAllContent(); }
-        void setValueAsString (const String&) override   {}
-
-    private:
-        CodeEditorComponent& codeEditorComponent;
-    };
-
     class CodeEditorComponentTextInterface  : public AccessibilityTextInterface
     {
     public:
@@ -67,6 +51,11 @@ private:
         bool isDisplayingProtectedText() const override
         {
             return false;
+        }
+
+        bool isReadOnly() const override
+        {
+            return codeEditorComponent.isReadOnly();
         }
 
         int getTotalNumCharacters() const override
@@ -82,6 +71,12 @@ private:
 
         void setSelection (Range<int> r) override
         {
+            if (r.isEmpty())
+            {
+                codeEditorComponent.caretPos.setPosition (r.getStart());
+                return;
+            }
+
             auto& doc = codeEditorComponent.document;
 
             codeEditorComponent.selectRegion (CodeDocument::Position (doc, r.getStart()),
@@ -151,14 +146,6 @@ private:
     private:
         CodeEditorComponent& codeEditorComponent;
     };
-
-    static AccessibilityHandler::Interfaces makeInterfaces (CodeEditorComponent& codeEditorComponent)
-    {
-        if (codeEditorComponent.isReadOnly())
-            return { std::make_unique<CodeEditorComponentValueInterface> (codeEditorComponent) };
-
-        return { std::make_unique<CodeEditorComponentTextInterface> (codeEditorComponent) };
-    }
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CodeEditorAccessibilityHandler)
