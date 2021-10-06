@@ -449,6 +449,10 @@ private:
                             }
                         }
                     }
+                    if (CallOutBox* const cb = handler->getComponent().findParentComponentOfClass<CallOutBox>()) {
+                        cb->dismiss();
+                        return YES;
+                    }
                 }
 
                 return NO;
