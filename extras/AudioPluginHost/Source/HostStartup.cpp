@@ -27,6 +27,8 @@
 #include "UI/MainHostWindow.h"
 #include "Plugins/InternalPlugins.h"
 
+#include "MacSpecific.h"
+
 #if ! (JUCE_PLUGINHOST_VST || JUCE_PLUGINHOST_VST3 || JUCE_PLUGINHOST_AU)
  #error "If you're building the audio plugin host, you probably want to enable VST and/or AU support"
 #endif
@@ -58,6 +60,10 @@ public:
         commandManager.registerAllCommandsForTarget (mainWindow.get());
 
         mainWindow->menuItemsChanged();
+
+#if JUCE_MAC
+        disableAppNap();
+#endif
 
         // Important note! We're going to use an async update here so that if we need
         // to re-open a file and instantiate some plugins, it will happen AFTER this

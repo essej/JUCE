@@ -1,13 +1,7 @@
-//
-//  MacSpecific.h
-//  AudioPluginHost
-//
-//  Created by Jesse Chappell on 1/6/22.
-//  Copyright © 2022 Raw Material Software Limited. All rights reserved.
-//
+#pragma once
 
-#ifndef MacSpecific_h
-#define MacSpecific_h
+#if JUCE_MAC
+void disableAppNap();
+#endif
 
 
-#endif /* MacSpecific_h */
