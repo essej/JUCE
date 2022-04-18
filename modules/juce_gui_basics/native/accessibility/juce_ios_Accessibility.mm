@@ -214,8 +214,11 @@ private:
             addMethod (@selector (accessibilityDataTableCellElementForRow:column:), getAccessibilityDataTableCellElementForRowColumn, "@@:ii");
             addMethod (@selector (accessibilityRowCount),                           getAccessibilityRowCount,                         "i@:");
             addMethod (@selector (accessibilityColumnCount),                        getAccessibilityColumnCount,                      "i@:");
+            addProtocol (@protocol (UIAccessibilityContainerDataTable));
+
             addMethod (@selector (accessibilityRowRange),                           getAccessibilityRowIndexRange,                    @encode (NSRange), "@:");
             addMethod (@selector (accessibilityColumnRange),                        getAccessibilityColumnIndexRange,                 @encode (NSRange), "@:");
+            addProtocol (@protocol (UIAccessibilityContainerDataTableCell));
 
             if (elementType == Type::textElement)
             {
