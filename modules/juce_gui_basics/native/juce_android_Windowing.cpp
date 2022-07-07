@@ -384,6 +384,7 @@ public:
                     env->SetIntField (windowLayoutParams.get(),
                                       layoutInDisplayCutoutModeFieldId,
                                       LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS);
+                                      //LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT);
             }
 
             if (Desktop::getInstance().getKioskModeComponent() != nullptr)
@@ -465,6 +466,7 @@ public:
 
             view.callVoidMethod (AndroidView.layout,
                                  bounds.getX(), bounds.getY(), bounds.getRight(), bounds.getBottom());
+            DBG("set bounds (screen): " << bounds.toString());
 
             if (viewGroup != nullptr && viewGroupIsWindow)
             {
@@ -477,6 +479,7 @@ public:
 
                 env->SetIntField (windowLayoutParams.get(), AndroidWindowManagerLayoutParams.gravity, GRAVITY_LEFT | GRAVITY_TOP);
                 env->CallVoidMethod (viewGroup.get(), AndroidViewManager.updateViewLayout, view.get(), windowLayoutParams.get());
+                DBG("called layout params (screen): " << bounds.toString());
             }
         }
         else
@@ -487,6 +490,7 @@ public:
             {
                 localView.callVoidMethod (AndroidView.layout,
                                           bounds.getX(), bounds.getY(), bounds.getRight(), bounds.getBottom());
+                DBG("set bounds deferred (screen): " << bounds.toString());
             });
         }
     }
@@ -504,6 +508,7 @@ public:
     void handleScreenSizeChange() override
     {
         ComponentPeer::handleScreenSizeChange();
+        DBG("handle screen size change");
 
         if (isFullScreen())
             setFullScreen (true);
@@ -571,8 +576,14 @@ public:
             return lastNonFullscreenBounds.isEmpty() ? getBounds() : lastNonFullscreenBounds;
         }();
 
-        if (! newBounds.isEmpty())
+
+        if (! newBounds.isEmpty()) {
+            DBG("Setting fullscreen new bounds: " << newBounds.toString());
             setBounds (newBounds, shouldBeFullScreen);
+            if (!isTimerRunning()) {
+                startTimer (750);
+            }
+        }
 
         component.repaint();
     }
@@ -633,7 +644,8 @@ public:
     {
         lastMousePos = sysPos / scale;
         auto pos = globalToLocal (lastMousePos);
-
+        auto spos = getScreenPosition() / scale;
+        DBG("screen mouse down: x: " << pos.getX() << " y: " << pos.getY() << " global: " << lastMousePos.getX() << " " << lastMousePos.getY() << "  scx: " << spos.getX() << " scy: " << spos.getY());
         // this forces a mouse-enter/up event, in case for some reason we didn't get a mouse-up before.
         handleMouseEvent (MouseInputSource::InputSourceType::touch,
                           pos,
@@ -1058,7 +1070,7 @@ private:
             {
                 const auto& mainDisplay = *Desktop::getInstance().getDisplays().getPrimaryDisplay();
                 auto newSafeAreaInsets = androidDisplayCutoutToBorderSize (displayCutout, mainDisplay.scale);
-
+                DBG("new screen insets: t: " << newSafeAreaInsets.getTop() << " bot: " << newSafeAreaInsets.getBottom() << " l: " << newSafeAreaInsets.getLeft() << " r: " << newSafeAreaInsets.getRight());
                 if (newSafeAreaInsets != mainDisplay.safeAreaInsets)
                     forceDisplayUpdate();
 
@@ -1208,12 +1220,14 @@ private:
     static constexpr int FLAG_NOT_TOUCH_MODAL = 0x20, FLAG_LAYOUT_IN_SCREEN = 0x100, FLAG_LAYOUT_NO_LIMITS = 0x200;
     static constexpr int PIXEL_FORMAT_OPAQUE = -1, PIXEL_FORMAT_TRANSPARENT = -2;
     static constexpr int LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS = 0x3;
+    static constexpr int LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER = 0x2;
+    static constexpr int LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT = 0x0;
 
     GlobalRef view, viewGroup, buffer;
     bool viewGroupIsWindow = false, fullScreen = false, navBarsHidden = false;
     int sizeAllocated = 0;
     float scale = (float) Desktop::getInstance().getDisplays().getPrimaryDisplay()->scale;
-
+    bool pendingSetBounds = false;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AndroidComponentPeer)
 };
@@ -1825,8 +1839,10 @@ void Displays::findDisplays (float masterScale)
                     {
                         LocalRef<jobject> displayCutout (env->CallObjectMethod (insets.get(), AndroidWindowInsets.getDisplayCutout));
 
-                        if (displayCutout.get() != nullptr)
+                        if (displayCutout.get() != nullptr) {
                             d.safeAreaInsets = androidDisplayCutoutToBorderSize (displayCutout, d.scale);
+                            DBG("find disp screen new insets: t: " << d.safeAreaInsets.getTop() << " bot: " << d.safeAreaInsets.getBottom() << " l: " << d.safeAreaInsets.getLeft() << " r: " << d.safeAreaInsets.getRight());
+                        }
                     }
                 }
             }
