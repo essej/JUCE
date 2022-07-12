@@ -93,6 +93,7 @@ public:
 
         [controller.get() setDelegate: delegate.get()];
         [controller.get() setModalTransitionStyle: UIModalTransitionStyleCrossDissolve];
+        [controller.get() setAllowsMultipleSelection: (flags & FileBrowserComponent::canSelectMultipleItems) != 0];
 
         setOpaque (false);
 
@@ -224,6 +225,76 @@ private:
     }
 
     //==============================================================================
+    void didPickDocumentsAtURLs (NSArray<NSURL *> * urls)
+    {
+        cancelPendingUpdate();
+
+        bool isWriting = controller.get().documentPickerMode == UIDocumentPickerModeExportToService
+                       | controller.get().documentPickerMode == UIDocumentPickerModeMoveToService;
+
+        NSUInteger accessOptions = isWriting ? 0 : NSFileCoordinatorReadingWithoutChanges;
+
+        NSMutableArray<NSFileAccessIntent*>* intents = [[[NSMutableArray alloc] initWithCapacity:[urls count]] autorelease];
+
+        for (NSURL * url in urls) {
+
+            auto* fileAccessIntent = isWriting
+            ? [NSFileAccessIntent writingIntentWithURL: url options: accessOptions]
+            : [NSFileAccessIntent readingIntentWithURL: url options: accessOptions];
+
+            [intents addObject:fileAccessIntent];
+        }
+
+        auto fileCoordinator = [[[NSFileCoordinator alloc] initWithFilePresenter: nil] autorelease];
+
+        [fileCoordinator coordinateAccessWithIntents: intents queue: [NSOperationQueue mainQueue] byAccessor: ^(NSError* err)
+        {
+            Array<URL> chooserResults;
+
+            if (err == nil)
+            {
+                for (NSURL * url in urls) {
+
+                    [url startAccessingSecurityScopedResource];
+
+                    NSError* error = nil;
+
+                    NSData* bookmark = [url bookmarkDataWithOptions: 0
+                                     includingResourceValuesForKeys: nil
+                                                      relativeToURL: nil
+                                                              error: &error];
+
+                    [bookmark retain];
+
+                    [url stopAccessingSecurityScopedResource];
+
+                    URL juceUrl (nsStringToJuce ([url absoluteString]));
+
+                    if (error == nil)
+                    {
+                        setURLBookmark (juceUrl, (void*) bookmark);
+                    }
+                    else
+                    {
+                        auto desc = [error localizedDescription];
+                        ignoreUnused (desc);
+                        jassertfalse;
+                    }
+
+                    chooserResults.add (juceUrl);
+                }
+            }
+            else
+            {
+                auto desc = [err localizedDescription];
+                ignoreUnused (desc);
+                jassertfalse;
+            }
+
+            owner.finished (chooserResults);
+        }];
+    }
+
     void didPickDocumentAtURL (NSURL* url)
     {
         cancelPendingUpdate();
@@ -301,6 +372,7 @@ private:
         {
             addIvar<Native*> ("owner");
 
+            addMethod (@selector (documentPicker:didPickDocumentsAtURLs:), didPickDocumentsAtURLs,   "v@:@@");
             addMethod (@selector (documentPicker:didPickDocumentAtURL:), didPickDocumentAtURL,       "v@:@@");
             addMethod (@selector (documentPickerWasCancelled:),          documentPickerWasCancelled, "v@:@");
 
@@ -313,6 +385,12 @@ private:
         static Native* getOwner (id self)               { return getIvar<Native*> (self, "owner"); }
 
         //==============================================================================
+        static void didPickDocumentsAtURLs (id self, SEL, UIDocumentPickerViewController*, NSArray<NSURL *> * urls)
+        {
+            if (auto* picker = getOwner (self))
+                picker->didPickDocumentsAtURLs (urls);
+        }
+
         static void didPickDocumentAtURL (id self, SEL, UIDocumentPickerViewController*, NSURL* url)
         {
             if (auto* picker = getOwner (self))
