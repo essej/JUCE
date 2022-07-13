@@ -144,12 +144,6 @@ public:
     */
     void setKeyPressBaseOctave (int newOctaveNumber);
 
-    /** Sets width of scroll buttons */
-    void setScrollButtonsWidth (int width);
-
-    /** Returns width of scroll buttons */
-    int getScrollButtonsWidth () const { return scrollButtonWidth; }
-
     //==============================================================================
     /** A set of colour IDs to use to change the colour of various aspects of the keyboard.
 
