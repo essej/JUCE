@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -286,6 +286,12 @@ bool File::hasWriteAccess() const
         return getParentDirectory().hasWriteAccess();
 
     return false;
+}
+
+bool File::hasReadAccess() const
+{
+    return fullPath.isNotEmpty()
+           && access (fullPath.toUTF8(), R_OK) == 0;
 }
 
 static bool setFileModeFlags (const String& fullPath, mode_t flags, bool shouldSet) noexcept
@@ -960,7 +966,12 @@ void JUCE_CALLTYPE Thread::setCurrentThreadName (const String& name)
 bool Thread::setThreadPriority (void* handle, int priority)
 {
     constexpr auto maxInputPriority = 10;
-    constexpr auto lowestRealtimePriority = 8;
+
+   #if JUCE_LINUX || JUCE_BSD
+    constexpr auto lowestRrPriority = 8;
+   #else
+    constexpr auto lowestRrPriority = 0;
+   #endif
 
     struct sched_param param;
     int policy;
@@ -971,7 +982,7 @@ bool Thread::setThreadPriority (void* handle, int priority)
     if (pthread_getschedparam ((pthread_t) handle, &policy, &param) != 0)
         return false;
 
-    policy = priority < lowestRealtimePriority ? SCHED_OTHER : SCHED_RR;
+    policy = priority < lowestRrPriority ? SCHED_OTHER : SCHED_RR;
 
     const auto minPriority = sched_get_priority_min (policy);
     const auto maxPriority = sched_get_priority_max (policy);
@@ -981,7 +992,7 @@ bool Thread::setThreadPriority (void* handle, int priority)
         if (policy == SCHED_OTHER)
             return 0;
 
-        return jmap (priority, lowestRealtimePriority, maxInputPriority, minPriority, maxPriority);
+        return jmap (priority, lowestRrPriority, maxInputPriority, minPriority, maxPriority);
     }();
 
     return pthread_setschedparam ((pthread_t) handle, policy, &param) == 0;
@@ -1368,7 +1379,7 @@ private:
         mach_timebase_info (&timebase);
 
         const auto ticksPerMs = ((double) timebase.denom * 1000000.0) / (double) timebase.numer;
-        const auto periodTicks = (uint32_t) (ticksPerMs * periodMs);
+        const auto periodTicks = (uint32_t) jmin ((double) std::numeric_limits<uint32_t>::max(), periodMs * ticksPerMs);
 
         thread_time_constraint_policy_data_t policy;
         policy.period      = periodTicks;

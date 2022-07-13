@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -498,8 +498,11 @@ void LookAndFeel::playAlertSound()
 class iOSMessageBox
 {
 public:
-    iOSMessageBox (const MessageBoxOptions& opts, std::unique_ptr<ModalComponentManager::Callback>&& cb)
-        : callback (std::move (cb))
+    iOSMessageBox (const MessageBoxOptions& opts,
+                   std::unique_ptr<ModalComponentManager::Callback>&& cb,
+                   bool deleteOnCompletion)
+        : callback (std::move (cb)),
+          shouldDeleteThis (deleteOnCompletion)
     {
         if (currentlyFocusedPeer != nullptr)
         {
@@ -541,10 +544,10 @@ public:
         result = buttonIndex;
 
         if (callback != nullptr)
-        {
             callback->modalStateFinished (result);
+
+        if (shouldDeleteThis)
             delete this;
-        }
     }
 
 private:
@@ -562,6 +565,7 @@ private:
 
     int result = -1;
     std::unique_ptr<ModalComponentManager::Callback> callback;
+    const bool shouldDeleteThis;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (iOSMessageBox)
 };
@@ -578,13 +582,24 @@ static int showDialog (const MessageBoxOptions& options,
         {
             jassert (mapFn != nullptr);
 
-            iOSMessageBox messageBox (options, nullptr);
+            iOSMessageBox messageBox (options, nullptr, false);
             return mapFn (messageBox.getResult());
         }
     }
    #endif
 
-    new iOSMessageBox (options, AlertWindowMappings::getWrappedCallback (callbackIn, mapFn));
+    const auto showBox = [options, callbackIn, mapFn]
+    {
+        new iOSMessageBox (options,
+                           AlertWindowMappings::getWrappedCallback (callbackIn, mapFn),
+                           true);
+    };
+
+    if (MessageManager::getInstance()->isThisTheMessageThread())
+        showBox();
+    else
+        MessageManager::callAsync (showBox);
+
     return 0;
 }
 
@@ -719,8 +734,8 @@ void SystemClipboard::copyTextToClipboard (const String& text)
 
 String SystemClipboard::getTextFromClipboard()
 {
-    id value = [[UIPasteboard generalPasteboard] valueForPasteboardType: @"public.text"];
-    if ([value isKindOfClass:[NSString class]]) {
+    id value = [[UIPasteboard generalPasteboard] string];
+    if (value != nil && [value isKindOfClass:[NSString class]]) {
         return nsStringToJuce (value);
     }
     return {};
@@ -791,7 +806,7 @@ private:
             addIvar<NativeDarkModeChangeDetectorImpl*> ("owner");
 
             JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wundeclared-selector")
-            addMethod (@selector (darkModeChanged:), darkModeChanged, "v@:@");
+            addMethod (@selector (darkModeChanged:), darkModeChanged);
             JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 
             registerClass();
@@ -852,7 +867,7 @@ static Rectangle<int> getRecommendedWindowBounds()
 
 static BorderSize<int> getSafeAreaInsets (float masterScale)
 {
-   #if defined (__IPHONE_11_0)
+   #if defined (__IPHONE_11_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_11_0
     if (@available (iOS 11.0, *))
     {
         UIEdgeInsets safeInsets = TemporaryWindow().window.safeAreaInsets;
@@ -864,7 +879,10 @@ static BorderSize<int> getSafeAreaInsets (float masterScale)
     }
    #endif
 
+    JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
     auto statusBarSize = [UIApplication sharedApplication].statusBarFrame.size;
+    JUCE_END_IGNORE_WARNINGS_GCC_LIKE
+
     auto statusBarHeight = jmin (statusBarSize.width, statusBarSize.height);
 
     return { roundToInt (statusBarHeight / masterScale), 0, 0, 0 };

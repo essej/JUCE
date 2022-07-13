@@ -2,15 +2,15 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2020 - Raw Material Software Limited
+   Copyright (c) 2022 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
-   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
+   By using JUCE, you agree to the terms of both the JUCE 7 End-User License
+   Agreement and JUCE Privacy Policy.
 
-   End User License Agreement: www.juce.com/juce-6-licence
+   End User License Agreement: www.juce.com/juce-7-licence
    Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
@@ -23,7 +23,14 @@
   ==============================================================================
 */
 
-#if defined (__IPHONE_13_0)
+#include "juce_mac_CGMetalLayerRenderer.h"
+
+#if TARGET_OS_SIMULATOR && JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS
+ #warning JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS uses parts of the Metal API that are currently unsupported in the simulator - falling back to JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS=0
+ #undef JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS
+#endif
+
+#if defined (__IPHONE_13_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_13_0
  #define JUCE_HAS_IOS_POINTER_SUPPORT 1
 #else
  #define JUCE_HAS_IOS_POINTER_SUPPORT 0
@@ -38,15 +45,18 @@ static UIInterfaceOrientation getWindowOrientation()
 {
     UIApplication* sharedApplication = [UIApplication sharedApplication];
 
-   #if (defined (__IPHONE_13_0) && __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_13_0)
-    for (UIScene* scene in [sharedApplication connectedScenes])
-        if ([scene isKindOfClass: [UIWindowScene class]])
-            return [(UIWindowScene*) scene interfaceOrientation];
-
-    return UIInterfaceOrientationPortrait;
-   #else
-    return [sharedApplication statusBarOrientation];
+   #if defined (__IPHONE_13_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_13_0
+    if (@available (iOS 13.0, *))
+    {
+        for (UIScene* scene in [sharedApplication connectedScenes])
+            if ([scene isKindOfClass: [UIWindowScene class]])
+                return [(UIWindowScene*) scene interfaceOrientation];
+    }
    #endif
+
+    JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
+    return [sharedApplication statusBarOrientation];
+    JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 }
 
 namespace Orientations
@@ -109,15 +119,29 @@ enum class MouseEventFlags
 
 using namespace juce;
 
+struct CADisplayLinkDeleter
+{
+    void operator() (CADisplayLink* displayLink) const noexcept
+    {
+        [displayLink invalidate];
+        [displayLink release];
+    }
+};
+
 @interface JuceUIView : UIView <UITextViewDelegate>
 {
 @public
     UIViewComponentPeer* owner;
     UITextView* hiddenTextView;
+    std::unique_ptr<CADisplayLink, CADisplayLinkDeleter> displayLink;
 }
 
 - (JuceUIView*) initWithOwner: (UIViewComponentPeer*) owner withFrame: (CGRect) frame;
 - (void) dealloc;
+
++ (Class) layerClass;
+
+- (void) displayLinkCallback: (CADisplayLink*) dl;
 
 - (void) drawRect: (CGRect) r;
 
@@ -189,8 +213,7 @@ struct UIViewPeerControllerReceiver
 };
 
 class UIViewComponentPeer  : public ComponentPeer,
-                             public FocusChangeListener,
-                             public UIViewPeerControllerReceiver
+                             private UIViewPeerControllerReceiver
 {
 public:
     UIViewComponentPeer (Component&, int windowStyleFlags, UIView* viewToAttachTo);
@@ -208,26 +231,30 @@ public:
         controller = [newController retain];
     }
 
-    Rectangle<int> getBounds() const override               { return getBounds (! isSharedWindow); }
+    Rectangle<int> getBounds() const override                 { return getBounds (! isSharedWindow); }
     Rectangle<int> getBounds (bool global) const;
     Point<float> localToGlobal (Point<float> relativePosition) override;
     Point<float> globalToLocal (Point<float> screenPosition) override;
     using ComponentPeer::localToGlobal;
     using ComponentPeer::globalToLocal;
     void setAlpha (float newAlpha) override;
-    void setMinimised (bool) override                       {}
-    bool isMinimised() const override                       { return false; }
+    void setMinimised (bool) override                         {}
+    bool isMinimised() const override                         { return false; }
     void setFullScreen (bool shouldBeFullScreen) override;
-    bool isFullScreen() const override                      { return fullScreen; }
+    bool isFullScreen() const override                        { return fullScreen; }
     bool contains (Point<int> localPos, bool trueIfInAChildWindow) const override;
-    BorderSize<int> getFrameSize() const override           { return BorderSize<int>(); }
+    OptionalBorderSize getFrameSizeIfPresent() const override { return {}; }
+    BorderSize<int> getFrameSize() const override             { return BorderSize<int>(); }
     bool setAlwaysOnTop (bool alwaysOnTop) override;
     void toFront (bool makeActiveWindow) override;
     void toBehind (ComponentPeer* other) override;
     void setIcon (const Image& newIcon) override;
-    StringArray getAvailableRenderingEngines() override     { return StringArray ("CoreGraphics Renderer"); }
+    StringArray getAvailableRenderingEngines() override       { return StringArray ("CoreGraphics Renderer"); }
+
+    void displayLinkCallback();
 
     void drawRect (CGRect);
+    void drawRectWithContext (CGContextRef, CGRect);
     bool canBecomeKeyWindow();
 
     //==============================================================================
@@ -236,10 +263,10 @@ public:
     bool isFocused() const override;
     void grabFocus() override;
     void textInputRequired (Point<int>, TextInputTarget&) override;
+    void dismissPendingTextInput() override;
 
     BOOL textViewReplaceCharacters (Range<int>, const String&);
-    void updateHiddenTextContent (TextInputTarget*);
-    void globalFocusChanged (Component*) override;
+    void updateHiddenTextContent (TextInputTarget&);
 
     void updateScreenBounds();
 
@@ -280,6 +307,11 @@ public:
     static MultiTouchMapper<UITouch*> currentTouches;
 
 private:
+    void appStyleChanged() override
+    {
+        [controller setNeedsStatusBarAppearanceUpdate];
+    }
+
     //==============================================================================
     class AsyncRepaintMessage  : public CallbackMessage
     {
@@ -298,6 +330,9 @@ private:
                 peer->repaint (rect);
         }
     };
+
+    std::unique_ptr<CoreGraphicsMetalLayerRenderer<UIView>> metalRenderer;
+    RectangleList<float> deferredRepaints;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (UIViewComponentPeer)
@@ -392,6 +427,24 @@ MultiTouchMapper<UITouch*> UIViewComponentPeer::currentTouches;
 
 - (UIStatusBarStyle) preferredStatusBarStyle
 {
+   #if defined (__IPHONE_13_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_13_0
+    if (@available (iOS 13.0, *))
+    {
+        if (auto* peer = getViewPeer (self))
+        {
+            switch (peer->getAppStyle())
+            {
+                case ComponentPeer::Style::automatic:
+                    return UIStatusBarStyleDefault;
+                case ComponentPeer::Style::light:
+                    return UIStatusBarStyleDarkContent;
+                case ComponentPeer::Style::dark:
+                    return UIStatusBarStyleLightContent;
+            }
+        }
+    }
+   #endif
+
     return UIStatusBarStyleDefault;
 }
 
@@ -433,6 +486,11 @@ MultiTouchMapper<UITouch*> UIViewComponentPeer::currentTouches;
     [super initWithFrame: frame];
     owner = peer;
 
+    displayLink.reset ([CADisplayLink displayLinkWithTarget: self
+                                                   selector: @selector (displayLinkCallback:)]);
+    [displayLink.get() addToRunLoop: [NSRunLoop mainRunLoop]
+                            forMode: NSDefaultRunLoopMode];
+
     hiddenTextView = [[UITextView alloc] initWithFrame: CGRectZero];
     [self addSubview: hiddenTextView];
     hiddenTextView.delegate = self;
@@ -467,7 +525,26 @@ MultiTouchMapper<UITouch*> UIViewComponentPeer::currentTouches;
     [hiddenTextView removeFromSuperview];
     [hiddenTextView release];
 
+    displayLink = nullptr;
+
     [super dealloc];
+}
+
+//==============================================================================
++ (Class) layerClass
+{
+   #if JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS
+    if (@available (iOS 13, *))
+        return [CAMetalLayer class];
+   #endif
+
+    return [CALayer class];
+}
+
+- (void) displayLinkCallback: (CADisplayLink*) dl
+{
+    if (owner != nullptr)
+        owner->displayLinkCallback();
 }
 
 //==============================================================================
@@ -639,10 +716,13 @@ UIViewComponentPeer::UIViewComponentPeer (Component& comp, int windowStyleFlags,
     view.opaque = component.isOpaque();
     view.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent: 0];
 
-   #if JUCE_COREGRAPHICS_DRAW_ASYNC
-    if (! getComponentAsyncLayerBackedViewDisabled (component))
-        [[view layer] setDrawsAsynchronously: YES];
+   #if JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS
+    if (@available (iOS 13, *))
+        metalRenderer = std::make_unique<CoreGraphicsMetalLayerRenderer<UIView>> (view, comp);
    #endif
+
+    if ((windowStyleFlags & ComponentPeer::windowRequiresSynchronousCoreGraphicsRendering) == 0)
+        [[view layer] setDrawsAsynchronously: YES];
 
     if (isSharedWindow)
     {
@@ -675,14 +755,16 @@ UIViewComponentPeer::UIViewComponentPeer (Component& comp, int windowStyleFlags,
 
     setTitle (component.getName());
     setVisible (component.isVisible());
-
-    Desktop::getInstance().addFocusChangeListener (this);
 }
+
+static UIViewComponentPeer* currentlyFocusedPeer = nullptr;
 
 UIViewComponentPeer::~UIViewComponentPeer()
 {
+    if (currentlyFocusedPeer == this)
+        currentlyFocusedPeer = nullptr;
+
     currentTouches.deleteAllTouchesForPeer (this);
-    Desktop::getInstance().removeFocusChangeListener (this);
 
     view->owner = nullptr;
     [view removeFromSuperview];
@@ -928,7 +1010,7 @@ void UIViewComponentPeer::handleTouches (UIEvent* event, MouseEventFlags mouseEv
 
             // this forces a mouse-enter/up event, in case for some reason we didn't get a mouse-up before.
             handleMouseEvent (MouseInputSource::InputSourceType::touch, pos, modsToSend.withoutMouseButtons(),
-                              MouseInputSource::invalidPressure, MouseInputSource::invalidOrientation, time, {}, touchIndex);
+                              MouseInputSource::defaultPressure, MouseInputSource::defaultOrientation, time, {}, touchIndex);
 
             if (! isValidPeer (this)) // (in case this component was deleted by the event)
                 return;
@@ -953,10 +1035,10 @@ void UIViewComponentPeer::handleTouches (UIEvent* event, MouseEventFlags mouseEv
 
         // NB: some devices return 0 or 1.0 if pressure is unknown, so we'll clip our value to a believable range:
         auto pressure = maximumForce > 0 ? jlimit (0.0001f, 0.9999f, getTouchForce (touch) / maximumForce)
-                                         : MouseInputSource::invalidPressure;
+                                         : MouseInputSource::defaultPressure;
 
         handleMouseEvent (MouseInputSource::InputSourceType::touch,
-                          pos, modsToSend, pressure, MouseInputSource::invalidOrientation, time, { }, touchIndex);
+                          pos, modsToSend, pressure, MouseInputSource::defaultOrientation, time, { }, touchIndex);
 
         if (! isValidPeer (this)) // (in case this component was deleted by the event)
             return;
@@ -964,7 +1046,7 @@ void UIViewComponentPeer::handleTouches (UIEvent* event, MouseEventFlags mouseEv
         if (isUp (mouseEventFlags))
         {
             handleMouseEvent (MouseInputSource::InputSourceType::touch, MouseInputSource::offscreenMousePos, modsToSend,
-                              MouseInputSource::invalidPressure, MouseInputSource::invalidOrientation, time, {}, touchIndex);
+                              MouseInputSource::defaultPressure, MouseInputSource::defaultOrientation, time, {}, touchIndex);
 
             if (! isValidPeer (this))
                 return;
@@ -981,7 +1063,7 @@ void UIViewComponentPeer::onHover (UIHoverGestureRecognizer* gesture)
     handleMouseEvent (MouseInputSource::InputSourceType::touch,
                       pos,
                       ModifierKeys::currentModifiers,
-                      MouseInputSource::invalidPressure, MouseInputSource::invalidOrientation,
+                      MouseInputSource::defaultPressure, MouseInputSource::defaultOrientation,
                       UIViewComponentPeer::getMouseTime ([[NSProcessInfo processInfo] systemUptime]),
                       {});
 }
@@ -1006,8 +1088,6 @@ void UIViewComponentPeer::onScroll (UIPanGestureRecognizer* gesture)
 #endif
 
 //==============================================================================
-static UIViewComponentPeer* currentlyFocusedPeer = nullptr;
-
 void UIViewComponentPeer::viewFocusGain()
 {
     if (currentlyFocusedPeer != this)
@@ -1048,8 +1128,18 @@ void UIViewComponentPeer::grabFocus()
     }
 }
 
-void UIViewComponentPeer::textInputRequired (Point<int>, TextInputTarget&)
+void UIViewComponentPeer::textInputRequired (Point<int> pos, TextInputTarget& target)
 {
+    view->hiddenTextView.frame = CGRectMake (pos.x, pos.y, 0, 0);
+
+    updateHiddenTextContent (target);
+    [view->hiddenTextView becomeFirstResponder];
+}
+
+void UIViewComponentPeer::dismissPendingTextInput()
+{
+    closeInputMethodContext();
+    [view->hiddenTextView resignFirstResponder];
 }
 
 static UIKeyboardType getUIKeyboardType (TextInputTarget::VirtualKeyboardType type) noexcept
@@ -1068,11 +1158,11 @@ static UIKeyboardType getUIKeyboardType (TextInputTarget::VirtualKeyboardType ty
     return UIKeyboardTypeDefault;
 }
 
-void UIViewComponentPeer::updateHiddenTextContent (TextInputTarget* target)
+void UIViewComponentPeer::updateHiddenTextContent (TextInputTarget& target)
 {
-    view->hiddenTextView.keyboardType = getUIKeyboardType (target->getKeyboardType());
-    view->hiddenTextView.text = juceStringToNS (target->getTextInRange (Range<int> (0, target->getHighlightedRegion().getStart())));
-    view->hiddenTextView.selectedRange = NSMakeRange ((NSUInteger) target->getHighlightedRegion().getStart(), 0);
+    view->hiddenTextView.keyboardType = getUIKeyboardType (target.getKeyboardType());
+    view->hiddenTextView.text = juceStringToNS (target.getTextInRange (Range<int> (0, target.getHighlightedRegion().getStart())));
+    view->hiddenTextView.selectedRange = NSMakeRange ((NSUInteger) target.getHighlightedRegion().getStart(), 0);
 }
 
 BOOL UIViewComponentPeer::textViewReplaceCharacters (Range<int> range, const String& text)
@@ -1093,29 +1183,36 @@ BOOL UIViewComponentPeer::textViewReplaceCharacters (Range<int> range, const Str
             target->insertTextAtCaret (text);
 
         if (deletionChecker != nullptr)
-            updateHiddenTextContent (target);
+            updateHiddenTextContent (*target);
     }
 
     return NO;
 }
 
-void UIViewComponentPeer::globalFocusChanged (Component*)
+//==============================================================================
+void UIViewComponentPeer::displayLinkCallback()
 {
-    if (auto* target = findCurrentTextInputTarget())
-    {
-        if (auto* comp = dynamic_cast<Component*> (target))
-        {
-            auto pos = component.getLocalPoint (comp, Point<int>());
-            view->hiddenTextView.frame = CGRectMake (pos.x, pos.y, 0, 0);
+    if (deferredRepaints.isEmpty())
+        return;
 
-            updateHiddenTextContent (target);
-            [view->hiddenTextView becomeFirstResponder];
-        }
-    }
-    else
+    auto dispatchRectangles = [this] ()
     {
-        [view->hiddenTextView resignFirstResponder];
-    }
+        if (metalRenderer != nullptr)
+            return metalRenderer->drawRectangleList (view,
+                                                     (float) view.contentScaleFactor,
+                                                     view.frame,
+                                                     component,
+                                                     [this] (CGContextRef ctx, CGRect r) { drawRectWithContext (ctx, r); },
+                                                     deferredRepaints);
+
+        for (const auto& r : deferredRepaints)
+            [view setNeedsDisplayInRect: convertToCGRect (r)];
+
+        return true;
+    };
+
+    if (dispatchRectangles())
+        deferredRepaints.clear();
 }
 
 //==============================================================================
@@ -1124,8 +1221,11 @@ void UIViewComponentPeer::drawRect (CGRect r)
     if (r.size.width < 1.0f || r.size.height < 1.0f)
         return;
 
-    CGContextRef cg = UIGraphicsGetCurrentContext();
+    drawRectWithContext (UIGraphicsGetCurrentContext(), r);
+}
 
+void UIViewComponentPeer::drawRectWithContext (CGContextRef cg, CGRect)
+{
     if (! component.isOpaque())
         CGContextClearRect (cg, CGContextGetClipBoundingBox (cg));
 
@@ -1182,9 +1282,12 @@ void Desktop::allowedOrientationsChanged()
 void UIViewComponentPeer::repaint (const Rectangle<int>& area)
 {
     if (insideDrawRect || ! MessageManager::getInstance()->isThisTheMessageThread())
+    {
         (new AsyncRepaintMessage (this, area))->post();
-    else
-        [view setNeedsDisplayInRect: convertToCGRect (area)];
+        return;
+    }
+
+    deferredRepaints.add (area.toFloat());
 }
 
 void UIViewComponentPeer::performAnyPendingRepaintsNow()
