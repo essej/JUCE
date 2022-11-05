@@ -428,7 +428,7 @@
 		49453CC5AD9F08D2738464AC /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_LINK_OBJC_RUNTIME = NO;
 				CODE_SIGN_IDENTITY = "";
@@ -443,7 +443,7 @@
 					"NDEBUG=1",
 					"JUCE_DISPLAY_SPLASH_SCREEN=0",
 					"JUCE_USE_DARK_SPLASH_SCREEN=1",
-					"JUCE_PROJUCER_VERSION=0x70001",
+					"JUCE_PROJUCER_VERSION=0x70002",
 					"JUCE_MODULE_AVAILABLE_juce_audio_basics=1",
 					"JUCE_MODULE_AVAILABLE_juce_audio_devices=1",
 					"JUCE_MODULE_AVAILABLE_juce_audio_formats=1",
@@ -568,7 +568,7 @@
 		C8B793AC1BEFBE7A99BE8352 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_LINK_OBJC_RUNTIME = NO;
 				CODE_SIGN_IDENTITY = "";
@@ -583,7 +583,7 @@
 					"DEBUG=1",
 					"JUCE_DISPLAY_SPLASH_SCREEN=0",
 					"JUCE_USE_DARK_SPLASH_SCREEN=1",
-					"JUCE_PROJUCER_VERSION=0x70001",
+					"JUCE_PROJUCER_VERSION=0x70002",
 					"JUCE_MODULE_AVAILABLE_juce_audio_basics=1",
 					"JUCE_MODULE_AVAILABLE_juce_audio_devices=1",
 					"JUCE_MODULE_AVAILABLE_juce_audio_formats=1",

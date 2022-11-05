@@ -657,6 +657,9 @@ void ComboBox::handleAsyncUpdate()
     if (onChange != nullptr)
         onChange();
 
+    if (checker.shouldBailOut())
+        return;
+
     if (auto* handler = getAccessibilityHandler())
         handler->notifyAccessibilityEvent (AccessibilityEvent::valueChanged);
 }

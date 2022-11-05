@@ -2661,6 +2661,9 @@
     <ClInclude Include="..\..\..\..\modules\juce_core\network\juce_WebInputStream.h">
       <Filter>JUCE Modules\juce_core\network</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\modules\juce_core\streams\juce_AndroidDocumentInputSource.h">
+      <Filter>JUCE Modules\juce_core\streams</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\modules\juce_core\streams\juce_BufferedInputStream.h">
       <Filter>JUCE Modules\juce_core\streams</Filter>
     </ClInclude>
@@ -3571,6 +3574,9 @@
       <Filter>JUCE Modules\juce_gui_basics\native\x11</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\modules\juce_gui_basics\native\juce_mac_CGMetalLayerRenderer.h">
+      <Filter>JUCE Modules\juce_gui_basics\native</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\modules\juce_gui_basics\native\juce_mac_PerScreenDisplayLinks.h">
       <Filter>JUCE Modules\juce_gui_basics\native</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\modules\juce_gui_basics\native\juce_MultiTouchMapper.h">

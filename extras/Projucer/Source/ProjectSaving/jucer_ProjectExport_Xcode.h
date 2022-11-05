@@ -167,8 +167,21 @@ public:
 
     String getCustomResourceFoldersString() const           { return customXcodeResourceFoldersValue.get().toString().replaceCharacters ("\r\n", "::"); }
     String getCustomXcassetsFolderString() const            { return customXcassetsFolderValue.get(); }
+
+    Optional<build_tools::RelativePath> getCustomXcassetsFolder() const
+    {
+        const auto customXcassetsPath = getCustomXcassetsFolderString();
+
+        if (customXcassetsPath.isEmpty())
+            return {};
+
+        return build_tools::RelativePath { customXcassetsPath, build_tools::RelativePath::projectFolder };
+    }
+
     String getCustomLaunchStoryboardString() const          { return customLaunchStoryboardValue.get(); }
-    bool shouldAddStoryboardToProject() const               { return getCustomLaunchStoryboardString().isNotEmpty() || getCustomXcassetsFolderString().isEmpty(); }
+
+    bool shouldAddStoryboardToProject() const               { return getCustomLaunchStoryboardString().isNotEmpty()
+                                                                  || (! customXcassetsFolderContainsLaunchImage()); }
 
     bool isHardenedRuntimeEnabled() const                   { return hardenedRuntimeValue.get(); }
     Array<var> getHardenedRuntimeOptions() const            { return *hardenedRuntimeOptionsValue.get().getArray(); }
@@ -301,8 +314,8 @@ public:
         {
             props.add (new TextPropertyComponent (customXcassetsFolderValue, "Custom Xcassets Folder", 128, false),
                        "If this field is not empty, your Xcode project will use the custom xcassets folder specified here "
-                       "for the app icons and launchimages, and will ignore the Icon files specified above. This will also prevent "
-                       "a launch storyboard from being used.");
+                       "for the app icons, and will ignore the Icon files specified above. If the provided xcassets folder "
+                       "contains a launchimage it will be used, unless a custom storyboard is specified.");
 
             props.add (new TextPropertyComponent (customLaunchStoryboardValue, "Custom Launch Storyboard", 256, false),
                        "If this field is not empty then the specified launch storyboard file will be added to the project as an Xcode "
@@ -676,7 +689,7 @@ public:
                        "added separated by a semicolon. The App Groups Capability setting must be enabled for this setting to have any effect.");
 
         props.add (new ChoicePropertyComponent (keepCustomXcodeSchemesValue, "Keep Custom Xcode Schemes"),
-                   "Enable this to keep any Xcode schemes you have created for debugging or running, e.g. to launch a plug-in in"
+                   "Enable this to keep any Xcode schemes you have created for debugging or running, e.g. to launch a plug-in in "
                    "various hosts. If disabled, all schemes are replaced by a default set.");
 
         props.add (new ChoicePropertyComponent (useHeaderMapValue, "USE_HEADERMAP"),
@@ -1035,7 +1048,7 @@ public:
     struct XcodeTarget : build_tools::ProjectType::Target
     {
         //==============================================================================
-        XcodeTarget (build_tools::ProjectType::Target::Type targetType, const XcodeProjectExporter& exporter)
+        XcodeTarget (Type targetType, const XcodeProjectExporter& exporter)
             : Target (targetType),
               owner (exporter)
         {
@@ -1601,9 +1614,10 @@ public:
             for (const auto& xcodeFlags : { XcodeWarningFlags { recommendedWarnings.common, "OTHER_CFLAGS" },
                                             XcodeWarningFlags { recommendedWarnings.cpp,    "OTHER_CPLUSPLUSFLAGS" } })
             {
-                auto flags = (xcodeFlags.flags.joinIntoString (" ")
-                                 + " " + owner.getExtraCompilerFlagsString()).trim();
-                flags = owner.replacePreprocessorTokens (config, flags);
+                const auto flags = owner.replacePreprocessorTokens (config,
+                                                                    (xcodeFlags.flags.joinIntoString (" ")
+                                                                     + " "
+                                                                     + config.getAllCompilerFlagsString()).trim());
 
                 if (flags.isNotEmpty())
                     s.set (xcodeFlags.variable, flags.quoted());
@@ -1686,10 +1700,13 @@ public:
                 s.set ("CODE_SIGN_ENTITLEMENTS", getEntitlementsFilename().quoted());
 
             {
-                auto cppStandard = owner.project.getCppStandardString();
+                const auto cppStandard = [&]() -> String
+                {
+                    if (owner.project.getCppStandardString() == "latest")
+                        return owner.project.getLatestNumberedCppStandardString();
 
-                if (cppStandard == "latest")
-                    cppStandard = owner.project.getLatestNumberedCppStandardString();
+                    return owner.project.getCppStandardString();
+                }();
 
                 s.set ("CLANG_CXX_LANGUAGE_STANDARD", (String (owner.shouldUseGNUExtensions() ? "gnu++"
                                                                                               : "c++") + cppStandard).quoted());
@@ -1838,7 +1855,7 @@ public:
                     flags.add (getLinkerFlagForLib (l));
             }
 
-            flags.add (owner.replacePreprocessorTokens (config, owner.getExtraLinkerFlagsString()));
+            flags.add (owner.replacePreprocessorTokens (config, config.getAllLinkerFlagsString()));
             flags = getCleanedStringArray (flags);
         }
 
@@ -1955,11 +1972,15 @@ public:
             StringArray paths (owner.extraSearchPaths);
             paths.addArray (config.getHeaderSearchPaths());
 
-            if (owner.project.getEnabledModules().isModuleEnabled ("juce_audio_plugin_client"))
+            constexpr auto audioPluginClient = "juce_audio_plugin_client";
+
+            if (owner.project.getEnabledModules().isModuleEnabled (audioPluginClient))
             {
-                // Needed to compile .r files
-                paths.add (owner.getModuleFolderRelativeToProject ("juce_audio_plugin_client")
-                                .rebased (owner.projectFolder, owner.getTargetFolder(), build_tools::RelativePath::buildTargetFolder)
+                paths.add (owner.getModuleFolderRelativeToProject (audioPluginClient)
+                                .getChildFile ("AU")
+                                .rebased (owner.projectFolder,
+                                          owner.getTargetFolder(),
+                                          build_tools::RelativePath::buildTargetFolder)
                                 .toUnixStyle());
             }
 
@@ -2286,7 +2307,16 @@ private:
 
             if (target->type == XcodeTarget::LV2PlugIn)
             {
-                auto script = "set -e\n\"$CONFIGURATION_BUILD_DIR/../"
+                // When building LV2 plugins on Arm macs, we need to load and run the plugin bundle
+                // during a post-build step in order to generate the plugin's supporting files. Arm
+                // macs will only load shared libraries if they are signed, but Xcode runs its
+                // signing step after any post-build scripts. As a workaround, we check whether the
+                // plugin is signed and generate an adhoc certificate if necessary, before running
+                // the manifest-generator.
+                auto script = "set -e\n"
+                              "xcrun codesign --verify \"$CONFIGURATION_BUILD_DIR/$PRODUCT_NAME\" "
+                              "|| xcrun codesign -s - \"$CONFIGURATION_BUILD_DIR/$PRODUCT_NAME\"\n"
+                              "\"$CONFIGURATION_BUILD_DIR/../"
                             + Project::getLV2FileWriterName()
                             + "\" \"$CONFIGURATION_BUILD_DIR/$PRODUCT_NAME\"\n";
 
@@ -2681,7 +2711,7 @@ private:
         folders.removeEmptyStrings();
 
         for (auto& crf : folders)
-            addCustomResourceFolder (crf);
+            addCustomResourceFolder (build_tools::RelativePath { crf, build_tools::RelativePath::projectFolder });
     }
 
     void addSubprojects() const
@@ -2787,19 +2817,43 @@ private:
 
     void addXcassets() const
     {
-        auto customXcassetsPath = getCustomXcassetsFolderString();
-
-        if (customXcassetsPath.isEmpty())
-            addDefaultXcassetsFolders();
+        if (const auto customXcassetsPath = getCustomXcassetsFolder())
+            addCustomResourceFolder (*customXcassetsPath, "folder.assetcatalog");
         else
-            addCustomResourceFolder (customXcassetsPath, "folder.assetcatalog");
+            addDefaultXcassetsFolders();
     }
 
-    void addCustomResourceFolder (String folderPathRelativeToProjectFolder, const String fileType = "folder") const
+    File makeFile (const build_tools::RelativePath& path) const
     {
-        auto folderPath = build_tools::RelativePath (folderPathRelativeToProjectFolder, build_tools::RelativePath::projectFolder)
-                                       .rebased (projectFolder, getTargetFolder(), build_tools::RelativePath::buildTargetFolder)
-                                       .toUnixStyle();
+        switch (path.getRoot())
+        {
+            case build_tools::RelativePath::projectFolder:
+                return getProject().getProjectFolder().getChildFile (path.toUnixStyle());
+
+            case build_tools::RelativePath::buildTargetFolder:
+                return getTargetFolder().getChildFile (path.toUnixStyle());
+
+            case build_tools::RelativePath::unknown:
+                jassertfalse;
+        }
+
+        return {};
+    }
+
+    bool customXcassetsFolderContainsLaunchImage() const
+    {
+        if (const auto xcassetsFolder = getCustomXcassetsFolder())
+            return makeFile (*xcassetsFolder).getChildFile ("LaunchImage.launchimage").exists();
+
+        return false;
+    }
+
+    void addCustomResourceFolder (const build_tools::RelativePath& path, const String fileType = "folder") const
+    {
+        jassert (path.getRoot() == build_tools::RelativePath::projectFolder);
+
+        auto folderPath = path.rebased (projectFolder, getTargetFolder(), build_tools::RelativePath::buildTargetFolder)
+                              .toUnixStyle();
 
         auto fileRefID = createFileRefID (folderPath);
 
@@ -3159,7 +3213,7 @@ private:
                 xcodeTarget = getTargetOfType (project.getTargetTypeFromFilePath (projectItem.getFile(), false));
 
             return addFile (FileOptions().withRelativePath (path)
-                                         .withCompilerFlags (compilerFlagSchemesMap[projectItem.getCompilerFlagSchemeString()].get())
+                                         .withCompilerFlags (getCompilerFlagsForProjectItem (projectItem))
                                          .withCompilationEnabled (projectItem.shouldBeCompiled())
                                          .withAddToBinaryResourcesEnabled (projectItem.shouldBeAddedToBinaryResources())
                                          .withAddToXcodeResourcesEnabled (projectItem.shouldBeAddedToXcodeResources())

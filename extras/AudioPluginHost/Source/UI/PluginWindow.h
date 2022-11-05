@@ -176,11 +176,15 @@ public:
         }
 
        #if JUCE_IOS || JUCE_ANDROID
-        auto screenBounds = Desktop::getInstance().getDisplays().getTotalBounds (true).toFloat();
-        auto scaleFactor = jmin ((screenBounds.getWidth() - 50) / getWidth(), (screenBounds.getHeight() - 50) / getHeight());
+        const auto screenBounds = Desktop::getInstance().getDisplays().getTotalBounds (true).toFloat();
+        const auto scaleFactor = jmin ((screenBounds.getWidth()  - 50.0f) / (float) getWidth(),
+                                       (screenBounds.getHeight() - 50.0f) / (float) getHeight());
 
         if (scaleFactor < 1.0f)
-            setSize ((int) (getWidth() * scaleFactor), (int) (getHeight() * scaleFactor));
+        {
+            setSize ((int) (scaleFactor * (float) getWidth()),
+                     (int) (scaleFactor * (float) getHeight()));
+        }
 
         setTopLeftPosition (20, 20);
        #else
@@ -245,7 +249,7 @@ private:
 
         if (type == PluginWindow::Type::araHost)
         {
-           #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS)
+           #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
             if (auto* araPluginInstanceWrapper = dynamic_cast<ARAPluginInstanceWrapper*> (&processor))
                 if (auto* ui = araPluginInstanceWrapper->createARAHostEditor())
                     return ui;

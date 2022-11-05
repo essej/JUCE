@@ -270,6 +270,7 @@ juce::build_tools::PlistOptions parsePlistOptions (const juce::File& file,
     updateField ("PLUGIN_AU_MAIN_TYPE",                  result.auMainType);
     updateField ("IS_AU_SANDBOX_SAFE",                   result.isAuSandboxSafe);
     updateField ("IS_PLUGIN_SYNTH",                      result.isPluginSynth);
+    updateField ("IS_PLUGIN_ARA_EFFECT",                 result.isPluginARAEffect);
     updateField ("SUPPRESS_AU_PLIST_RESOURCE_USAGE",     result.suppressResourceUsage);
     updateField ("BUNDLE_ID",                            result.bundleIdentifier);
     updateField ("ICON_FILE",                            result.iconFile);
@@ -529,7 +530,7 @@ int main (int argc, char** argv)
         juce::ArgumentList argumentList { arguments.front(),
                                           juce::StringArray (arguments.data() + 1, (int) arguments.size() - 1) };
 
-        using Fn = std::add_lvalue_reference<decltype (writeBinaryData)>::type;
+        using Fn = int (*) (juce::ArgumentList&&);
 
         const std::unordered_map<juce::String, Fn> commands
         {

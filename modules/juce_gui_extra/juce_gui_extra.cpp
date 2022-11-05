@@ -67,10 +67,7 @@
  #import <WebKit/WebKit.h>
 
  #if JUCE_PUSH_NOTIFICATIONS
-  #if defined (__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
-   #import <UserNotifications/UserNotifications.h>
-  #endif
-
+  #import <UserNotifications/UserNotifications.h>
   #include "native/juce_ios_PushNotifications.cpp"
  #endif
 
@@ -187,12 +184,4 @@
  #if JUCE_WEB_BROWSER
   #include "native/juce_android_WebBrowserComponent.cpp"
  #endif
-#endif
-
-//==============================================================================
-#if ! JUCE_WINDOWS && JUCE_WEB_BROWSER
- juce::WebBrowserComponent::WebBrowserComponent (ConstructWithoutPimpl) {}
- juce::WindowsWebView2WebBrowserComponent::WindowsWebView2WebBrowserComponent (bool unloadWhenHidden,
-                                                                               const WebView2Preferences&)
-     : WebBrowserComponent (unloadWhenHidden) {}
 #endif

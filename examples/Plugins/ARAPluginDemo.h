@@ -63,7 +63,7 @@ public:
     SharedTimeSliceThread()
         : TimeSliceThread (String (JucePlugin_Name) + " ARA Sample Reading Thread")
     {
-        startThread (7);  // Above default priority so playback is fluent, but below realtime
+        startThread (Priority::high);  // Above default priority so playback is fluent, but below realtime
     }
 };
 
@@ -110,7 +110,10 @@ public:
     void writeInto (AudioBuffer<float>& buffer)
     {
         if (loopRange.getLength() == 0)
+        {
             buffer.clear();
+            return;
+        }
 
         const auto numChannelsToCopy = std::min (inputBuffer->getNumChannels(), buffer.getNumChannels());
 
@@ -140,36 +143,15 @@ private:
     int64 pos;
 };
 
-class OptionalRange
-{
-public:
-    using Type = Range<int64>;
-
-    OptionalRange() : valid (false) {}
-    explicit OptionalRange (Type valueIn) : valid (true), value (std::move (valueIn)) {}
-
-    explicit operator bool() const noexcept { return valid; }
-
-    const auto& operator*() const
-    {
-        jassert (valid);
-        return value;
-    }
-
-private:
-    bool valid;
-    Type value;
-};
-
 //==============================================================================
 // Returns the modified sample range in the output buffer.
-inline OptionalRange readPlaybackRangeIntoBuffer (Range<double> playbackRange,
-                                                  const ARAPlaybackRegion* playbackRegion,
-                                                  AudioBuffer<float>& buffer,
-                                                  const std::function<AudioFormatReader* (ARA::PlugIn::AudioSource*)>& getReader)
+inline std::optional<Range<int64>> readPlaybackRangeIntoBuffer (Range<double> playbackRange,
+                                                                const ARAPlaybackRegion* playbackRegion,
+                                                                AudioBuffer<float>& buffer,
+                                                                const std::function<AudioFormatReader* (ARA::PlugIn::AudioSource*)>& getReader)
 {
-    const auto rangeInAudioModificationTime = playbackRange.movedToStartAt (playbackRange.getStart()
-                                                                            - playbackRegion->getStartInAudioModificationTime());
+    const auto rangeInAudioModificationTime = playbackRange - playbackRegion->getStartInPlaybackTime()
+                                                            + playbackRegion->getStartInAudioModificationTime();
 
     const auto audioSource = playbackRegion->getAudioModification()->getAudioSource();
     const auto audioModificationSampleRate = audioSource->getSampleRate();
@@ -181,7 +163,9 @@ inline OptionalRange readPlaybackRangeIntoBuffer (Range<double> playbackRange,
 
     const auto inputOffset = jlimit ((int64_t) 0, audioSource->getSampleCount(), sampleRangeInAudioModification.getStart());
 
-    const auto outputOffset = -std::min (sampleRangeInAudioModification.getStart(), (int64_t) 0);
+    // With the output offset it can always be said of the output buffer, that the zeroth element
+    // corresponds to beginning of the playbackRange.
+    const auto outputOffset = std::max (-sampleRangeInAudioModification.getStart(), (int64_t) 0);
 
     /* TODO: Handle different AudioSource and playback sample rates.
 
@@ -203,12 +187,12 @@ inline OptionalRange readPlaybackRangeIntoBuffer (Range<double> playbackRange,
     }();
 
     if (readLength == 0)
-        return OptionalRange { {} };
+        return Range<int64>();
 
     auto* reader = getReader (audioSource);
 
     if (reader != nullptr && reader->read (&buffer, (int) outputOffset, (int) readLength, inputOffset, true, true))
-        return OptionalRange { { outputOffset, readLength } };
+        return Range<int64>::withStartAndLength (outputOffset, readLength);
 
     return {};
 }
@@ -393,6 +377,8 @@ public:
         return success;
     }
 
+    using ARAPlaybackRenderer::processBlock;
+
 private:
     //==============================================================================
     // We're subclassing here only to provide a proper default c'tor for our shared resource
@@ -549,6 +535,8 @@ public:
         });
     }
 
+    using ARAEditorRenderer::processBlock;
+
 private:
     void configure()
     {
@@ -615,6 +603,27 @@ protected:
     }
 };
 
+struct PlayHeadState
+{
+    void update (AudioPlayHead* aph)
+    {
+        const auto info = aph->getPosition();
+
+        if (info.hasValue() && info->getIsPlaying())
+        {
+            isPlaying.store (true);
+            timeInSeconds.store (info->getTimeInSeconds().orFallback (0));
+        }
+        else
+        {
+            isPlaying.store (false);
+        }
+    }
+
+    std::atomic<bool>   isPlaying     { false };
+    std::atomic<double> timeInSeconds { 0.0 };
+};
+
 //==============================================================================
 class ARADemoPluginAudioProcessorImpl  : public AudioProcessor,
                                          public AudioProcessorARAExtension
@@ -630,11 +639,13 @@ public:
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override
     {
-         prepareToPlayForARA (sampleRate, samplesPerBlock, getMainBusNumOutputChannels(), getProcessingPrecision());
+        playHeadState.isPlaying.store (false);
+        prepareToPlayForARA (sampleRate, samplesPerBlock, getMainBusNumOutputChannels(), getProcessingPrecision());
     }
 
     void releaseResources() override
     {
+        playHeadState.isPlaying.store (false);
         releaseResourcesForARA();
     }
 
@@ -653,9 +664,14 @@ public:
 
         ScopedNoDenormals noDenormals;
 
-        if (! processBlockForARA (buffer, isRealtime(), getPlayHead()))
+        auto* audioPlayHead = getPlayHead();
+        playHeadState.update (audioPlayHead);
+
+        if (! processBlockForARA (buffer, isRealtime(), audioPlayHead))
             processBlockBypassed (buffer, midiMessages);
     }
+
+    using AudioProcessor::processBlock;
 
     //==============================================================================
     const String getName() const override                             { return "ARAPluginDemo"; }
@@ -673,6 +689,8 @@ public:
     //==============================================================================
     void getStateInformation (MemoryBlock&) override                  {}
     void setStateInformation (const void*, int) override              {}
+
+    PlayHeadState playHeadState;
 
 private:
     //==============================================================================
@@ -1043,8 +1061,8 @@ public:
         void paint (Graphics& g) override { g.fillAll (juce::Colours::yellow.darker (0.2f)); }
     };
 
-    OverlayComponent(std::function<AudioPlayHead*()> getAudioPlayheadIn)
-        : getAudioPlayhead (std::move (getAudioPlayheadIn))
+    OverlayComponent (PlayHeadState& playHeadStateIn)
+        : playHeadState (&playHeadStateIn)
     {
         addChildComponent (playheadMarker);
         setInterceptsMouseClicks (false, false);
@@ -1074,12 +1092,9 @@ public:
 private:
     void doResize()
     {
-        auto* aph = getAudioPlayhead();
-        const auto info = aph->getPosition();
-
-        if (info.hasValue() && info->getIsPlaying())
+        if (playHeadState->isPlaying.load())
         {
-            const auto markerX = info->getTimeInSeconds().orFallback (0) * pixelPerSecond;
+            const auto markerX = playHeadState->timeInSeconds.load() * pixelPerSecond;
             const auto playheadLine = getLocalBounds().withTrimmedLeft ((int) (markerX - markerWidth / 2.0) - horizontalOffset)
                                                       .removeFromLeft ((int) markerWidth);
             playheadMarker.setVisible (true);
@@ -1098,7 +1113,7 @@ private:
 
     static constexpr double markerWidth = 2.0;
 
-    std::function<AudioPlayHead*()> getAudioPlayhead;
+    PlayHeadState* playHeadState;
     double pixelPerSecond = 1.0;
     int horizontalOffset = 0;
     PlayheadMarkerComponent playheadMarker;
@@ -1110,9 +1125,9 @@ class DocumentView  : public Component,
                       private ARAEditorView::Listener
 {
 public:
-    explicit DocumentView (ARADocument& document, std::function<AudioPlayHead*()> getAudioPlayhead)
+    explicit DocumentView (ARADocument& document, PlayHeadState& playHeadState)
         : araDocument (document),
-          overlay (std::move (getAudioPlayhead))
+          overlay (playHeadState)
     {
         addAndMakeVisible (tracksBackground);
 
@@ -1371,8 +1386,7 @@ public:
         if (auto* editorView = getARAEditorView())
         {
             auto* document = ARADocumentControllerSpecialisation::getSpecialisedDocumentController(editorView->getDocumentController())->getDocument();
-            documentView = std::make_unique<DocumentView> (*document,
-                                                           [this]() { return getAudioProcessor()->getPlayHead(); });
+            documentView = std::make_unique<DocumentView> (*document, p.playHeadState );
         }
 
         addAndMakeVisible (documentView.get());

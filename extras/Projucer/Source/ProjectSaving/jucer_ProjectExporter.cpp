@@ -507,6 +507,14 @@ String ProjectExporter::replacePreprocessorTokens (const ProjectExporter::BuildC
                                                  sourceString);
 }
 
+String ProjectExporter::getCompilerFlagsForProjectItem (const Project::Item& projectItem) const
+{
+    if (auto buildConfigurationForFile = getBuildConfigurationWithName (projectItem.getCompilerFlagSchemeString()))
+        return buildConfigurationForFile->getAllCompilerFlagsString();
+
+    return {};
+}
+
 void ProjectExporter::copyMainGroupFromProject()
 {
     jassert (itemGroups.size() == 0);
@@ -761,14 +769,26 @@ ProjectExporter::BuildConfiguration::Ptr ProjectExporter::getConfiguration (int 
     return createBuildConfig (getConfigurations().getChild (index));
 }
 
-bool ProjectExporter::hasConfigurationNamed (const String& nameToFind) const
+std::optional<ValueTree> ProjectExporter::getConfigurationWithName (const String& nameToFind) const
 {
     auto configs = getConfigurations();
     for (int i = configs.getNumChildren(); --i >= 0;)
-        if (configs.getChild(i) [Ids::name].toString() == nameToFind)
-            return true;
+    {
+        auto config = configs.getChild (i);
 
-    return false;
+        if (config[Ids::name].toString() == nameToFind)
+            return config;
+    }
+
+    return {};
+}
+
+ProjectExporter::BuildConfiguration::Ptr ProjectExporter::getBuildConfigurationWithName (const String& nameToFind) const
+{
+    if (auto config = getConfigurationWithName (nameToFind))
+        return createBuildConfig (*config);
+
+    return nullptr;
 }
 
 String ProjectExporter::getUniqueConfigName (String nm) const
@@ -780,7 +800,7 @@ String ProjectExporter::getUniqueConfigName (String nm) const
     nameRoot = nameRoot.trim();
 
     int suffix = 2;
-    while (hasConfigurationNamed (name))
+    while (getConfigurationWithName (name).has_value())
         nm = nameRoot + " " + String (suffix++);
 
     return nm;
@@ -894,33 +914,22 @@ ProjectExporter::BuildConfiguration::BuildConfiguration (Project& p, const Value
      librarySearchPathValue        (config, Ids::libraryPath,              getUndoManager()),
      userNotesValue                (config, Ids::userNotes,                getUndoManager()),
      usePrecompiledHeaderFileValue (config, Ids::usePrecompiledHeaderFile, getUndoManager(), false),
-     precompiledHeaderFileValue    (config, Ids::precompiledHeaderFile,    getUndoManager())
+     precompiledHeaderFileValue    (config, Ids::precompiledHeaderFile,    getUndoManager()),
+     configCompilerFlagsValue      (config, Ids::extraCompilerFlags,       getUndoManager()),
+     configLinkerFlagsValue        (config, Ids::extraLinkerFlags,         getUndoManager())
 {
     auto& llvmFlags = recommendedCompilerWarningFlags[CompilerNames::llvm] = BuildConfiguration::CompilerWarningFlags::getRecommendedForGCCAndLLVM();
-    llvmFlags.common.addArray ({
-        "-Wshorten-64-to-32", "-Wconversion", "-Wint-conversion",
-        "-Wconditional-uninitialized", "-Wconstant-conversion", "-Wbool-conversion",
-        "-Wextra-semi", "-Wshift-sign-overflow",
-        "-Wshadow-all", "-Wnullable-to-nonnull-conversion",
-        "-Wmissing-prototypes"
-    });
-    llvmFlags.cpp.addArray ({
-        "-Wunused-private-field", "-Winconsistent-missing-destructor-override"
-    });
-    llvmFlags.objc.addArray ({
-        "-Wunguarded-availability", "-Wunguarded-availability-new"
-    });
+    llvmFlags.common.addArray ({ "-Wshorten-64-to-32", "-Wconversion", "-Wint-conversion",
+                                 "-Wconditional-uninitialized", "-Wconstant-conversion", "-Wbool-conversion",
+                                 "-Wextra-semi", "-Wshift-sign-overflow",
+                                 "-Wshadow-all", "-Wnullable-to-nonnull-conversion",
+                                 "-Wmissing-prototypes" });
+    llvmFlags.cpp.addArray ({ "-Wunused-private-field", "-Winconsistent-missing-destructor-override" });
+    llvmFlags.objc.addArray ({ "-Wunguarded-availability", "-Wunguarded-availability-new" });
 
     auto& gccFlags = recommendedCompilerWarningFlags[CompilerNames::gcc] = BuildConfiguration::CompilerWarningFlags::getRecommendedForGCCAndLLVM();
-    gccFlags.common.addArray ({
-        "-Wextra", "-Wsign-compare", "-Wno-implicit-fallthrough", "-Wno-maybe-uninitialized",
-        "-Wredundant-decls", "-Wno-strict-overflow",
-        "-Wshadow"
-    });
-}
-
-ProjectExporter::BuildConfiguration::~BuildConfiguration()
-{
+    gccFlags.common.addArray ({ "-Wextra", "-Wsign-compare", "-Wno-implicit-fallthrough", "-Wno-maybe-uninitialized",
+                                "-Wredundant-decls", "-Wno-strict-overflow", "-Wshadow" });
 }
 
 String ProjectExporter::BuildConfiguration::getGCCOptimisationFlag() const
@@ -1006,6 +1015,12 @@ void ProjectExporter::BuildConfiguration::createPropertyEditors (PropertyListBui
     props.add (new TextPropertyComponent (ppDefinesValue, "Preprocessor Definitions", 32768, true),
                "Extra preprocessor definitions. Use the form \"NAME1=value NAME2=value\", using whitespace, commas, or "
                "new-lines to separate the items - to include a space or comma in a definition, precede it with a backslash.");
+
+    props.add (new TextPropertyComponent (configCompilerFlagsValue, "Configuration-specific Compiler Flags", 8192, true),
+               "Compiler flags that are only to be used in this configuration.");
+
+    props.add (new TextPropertyComponent (configLinkerFlagsValue, "Configuration-specific Linker Flags", 8192, true),
+               "Linker flags that are only to be used in this configuration.");
 
     props.add (new ChoicePropertyComponent (linkTimeOptimisationValue, "Link-Time Optimisation"),
                "Enable this to perform link-time code optimisation. This is recommended for release builds.");

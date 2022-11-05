@@ -293,10 +293,8 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
             options |= (AVAudioSessionCategoryOptionDefaultToSpeaker);
                       // | AVAudioSessionCategoryOptionAllowBluetooth // you don't really want by default unless specified for an audio app, as using bluetooth input devices SUCKS
 
-           #if defined (__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
             if (@available (iOS 10.0, *))
                 options |= AVAudioSessionCategoryOptionAllowBluetoothA2DP | AVAudioSessionCategoryOptionAllowAirPlay;
-           #endif
         }
 
         JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance] setCategory: category
@@ -740,13 +738,17 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
     JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
     Image getIcon (int size)
     {
-        if (interAppAudioConnected)
+        if (@available (macCatalyst 14.0, *))
         {
-            UIImage* hostUIImage = AudioOutputUnitGetHostIcon (audioUnit, size);
-            if (hostUIImage != nullptr)
-                return juce_createImageFromUIImage (hostUIImage);
+            if (interAppAudioConnected)
+            {
+                UIImage* hostUIImage = AudioOutputUnitGetHostIcon (audioUnit, size);
+                if (hostUIImage != nullptr)
+                    return juce_createImageFromUIImage (hostUIImage);
+            }
         }
-        return Image();
+
+        return {};
     }
     JUCE_END_IGNORE_WARNINGS_GCC_LIKE
    #endif
@@ -766,7 +768,6 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
                                             &dataSize);
         if (err == noErr)
         {
-           #if defined (__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
             if (@available (iOS 10.0, *))
             {
                 [[UIApplication sharedApplication] openURL: (NSURL*) hostUrl
@@ -775,7 +776,6 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
 
                 return;
             }
-           #endif
 
             JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
             [[UIApplication sharedApplication] openURL: (NSURL*) hostUrl];
@@ -940,8 +940,8 @@ struct iOSAudioIODevice::Pimpl      : public AsyncUpdater
             if ((int) numFrames > channelData.getFloatBufferSize())
                 channelData.setFloatBufferSize ((int) numFrames);
 
-            float** const inputData = channelData.audioData.getArrayOfWritePointers();
-            float** const outputData = inputData + channelData.inputs->numActiveChannels;
+            float* const* const inputData = channelData.audioData.getArrayOfWritePointers();
+            float* const* const outputData = inputData + channelData.inputs->numActiveChannels;
 
             if (useInput)
             {
