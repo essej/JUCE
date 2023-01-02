@@ -183,7 +183,7 @@ bool Thread::startRealtimeThread (const RealtimeOptions& options)
     {
         realtimeOptions = std::make_optional (options);
 
-        if (startThreadInternal (Priority::normal))
+        if (startThreadInternal (Priority::highest))
             return true;
 
         realtimeOptions.reset();
