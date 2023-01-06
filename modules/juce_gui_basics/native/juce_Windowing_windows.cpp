@@ -420,8 +420,6 @@ static double getGlobalDPI()
     return (GetDeviceCaps (deviceContext.dc, LOGPIXELSX) + GetDeviceCaps (deviceContext.dc, LOGPIXELSY)) / 2.0;
 }
 
-// breaks windows 7 compatibility, don't use for now
-#if 0
 //==============================================================================
 class ScopedSuspendResumeNotificationRegistration
 {
@@ -467,7 +465,7 @@ private:
 
     std::unique_ptr<std::remove_pointer_t<HPOWERNOTIFY>, Destructor> handle;
 };
-#endif
+
 
 //==============================================================================
 class ScopedThreadDPIAwarenessSetter::NativeImpl
@@ -1318,16 +1316,15 @@ public:
                                         });
         }
 
+        suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration { hwnd };
+
         setCurrentRenderingEngine (engine);
-        // breaks windows 7 compatibility
-        // suspendResumeRegistration = ScopedSuspendResumeNotificationRegistration { hwnd };
     }
 
     ~HWNDComponentPeer() override
     {
         // Clean up that needs to happen on the calling thread
-        // breaks windows 7 compatibility -- commenting out
-        // suspendResumeRegistration = {};
+        suspendResumeRegistration = {};
 
         VBlankDispatcher::getInstance()->removeListener (*this);
 
@@ -4686,8 +4683,7 @@ private:
     };
     uint8_t mouseActivateFlags = 0;
 
-    // breaks windows 7 compat - commented out for now
-    // ScopedSuspendResumeNotificationRegistration suspendResumeRegistration;
+    ScopedSuspendResumeNotificationRegistration suspendResumeRegistration;
     std::optional<TimedCallback> monitorUpdateTimer;
 
     std::unique_ptr<RenderContext> renderContext;
