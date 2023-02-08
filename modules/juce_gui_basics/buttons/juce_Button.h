@@ -533,7 +533,8 @@ private:
     bool triggerOnMouseDown = false;
     bool generateTooltip = false;
     bool isInDraggableViewport = false ,isDraggingToScroll = false;
-
+    bool hadMouseDown = false;
+    
     void checkToggleableState (bool wasToggleable);
 
     void repeatTimerCallback();
