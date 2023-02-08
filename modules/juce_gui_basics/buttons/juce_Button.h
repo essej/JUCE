@@ -522,7 +522,8 @@ private:
     bool triggerOnMouseDown = false;
     bool generateTooltip = false;
     bool isInDraggableViewport = false ,isDraggingToScroll = false;
-
+    bool hadMouseDown = false;
+    
     std::unique_ptr<AccessibilityHandler> createAccessibilityHandler() override;
     void checkToggleableState (bool wasToggleable);
 
