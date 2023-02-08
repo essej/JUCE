@@ -470,7 +470,7 @@ void Button::mouseExit (const MouseEvent&)      { updateState (false, false); }
 bool Button::isInDragToScrollViewport() const noexcept
 {
     if (auto* vp = findParentComponentOfClass<Viewport>())
-        return vp->isScrollOnDragEnabled() && (vp->canScrollVertically() || vp->canScrollHorizontally());
+        return vp->getScrollOnDragMode() != Viewport::ScrollOnDragMode::never && (vp->canScrollVertically() || vp->canScrollHorizontally());
     
     return false;
 }
@@ -483,6 +483,7 @@ void Button::mouseDown (const MouseEvent& e)
 
     if (isDown())
     {
+        hadMouseDown = true;
         if (autoRepeatDelay >= 0)
             callbackHelper->startTimer (autoRepeatDelay);
 
@@ -504,11 +505,13 @@ void Button::mouseUp (const MouseEvent& e)
 
         WeakReference<Component> deletionWatcher (this);
 
-        internalClickCallback (e.mods);
+        if (hadMouseDown)
+            internalClickCallback (e.mods);
 
         if (deletionWatcher != nullptr)
             updateState (isMouseSourceOver (e), false);
     }
+    hadMouseDown = false;
 }
 
 void Button::mouseDrag (const MouseEvent& e)
