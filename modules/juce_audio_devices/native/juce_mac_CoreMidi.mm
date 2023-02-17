@@ -71,7 +71,7 @@ namespace CoreMidiHelpers
     {
         virtual ~SenderBase() noexcept = default;
 
-        virtual void send (MIDIPortRef port, MIDIEndpointRef endpoint, const MidiMessage& m) = 0;
+        virtual void send (MIDIPortRef port, MIDIEndpointRef endpoint, const ump::BytestreamMidiView& m) = 0;
         virtual void send (MIDIPortRef port, MIDIEndpointRef endpoint, ump::Iterator b, ump::Iterator e) = 0;
 
         virtual ump::MidiProtocol getProtocol() const noexcept = 0;
@@ -88,7 +88,7 @@ namespace CoreMidiHelpers
             : umpConverter (getProtocolForEndpoint (ep))
         {}
 
-        void send (MIDIPortRef port, MIDIEndpointRef endpoint, const MidiMessage& m) override
+        void send (MIDIPortRef port, MIDIEndpointRef endpoint, const ump::BytestreamMidiView& m) override
         {
             newSendImpl (port, endpoint, m);
         }
@@ -182,7 +182,7 @@ namespace CoreMidiHelpers
     {
         explicit Sender (MIDIEndpointRef) {}
 
-        void send (MIDIPortRef port, MIDIEndpointRef endpoint, const MidiMessage& m) override
+        void send (MIDIPortRef port, MIDIEndpointRef endpoint, const ump::BytestreamMidiView& m) override
         {
             oldSendImpl (port, endpoint, m);
         }
@@ -191,7 +191,7 @@ namespace CoreMidiHelpers
         {
             std::for_each (b, e, [&] (const ump::View& v)
             {
-                bytestreamConverter.convert (v, 0.0, [&] (const MidiMessage& m)
+                bytestreamConverter.convert (v, 0.0, [&] (const ump::BytestreamMidiView& m)
                 {
                     send (port, endpoint, m);
                 });
@@ -206,7 +206,7 @@ namespace CoreMidiHelpers
     private:
         ump::ToBytestreamConverter bytestreamConverter { 2048 };
 
-        void oldSendImpl (MIDIPortRef port, MIDIEndpointRef endpoint, const MidiMessage& message)
+        void oldSendImpl (MIDIPortRef port, MIDIEndpointRef endpoint, const ump::BytestreamMidiView& message)
         {
            #if JUCE_IOS
             const MIDITimeStamp timeStamp = mach_absolute_time();
@@ -217,7 +217,7 @@ namespace CoreMidiHelpers
             HeapBlock<MIDIPacketList> allocatedPackets;
             MIDIPacketList stackPacket;
             auto* packetToSend = &stackPacket;
-            auto dataSize = (size_t) message.getRawDataSize();
+            auto dataSize = message.bytes.size();
 
             if (message.isSysEx())
             {
@@ -234,7 +234,7 @@ namespace CoreMidiHelpers
                 {
                     p->timeStamp = timeStamp;
                     p->length = (UInt16) jmin (maxPacketSize, bytesLeft);
-                    memcpy (p->data, message.getRawData() + pos, p->length);
+                    memcpy (p->data, message.bytes.data() + pos, p->length);
                     pos += p->length;
                     bytesLeft -= p->length;
                     p = MIDIPacketNext (p);
@@ -254,7 +254,7 @@ namespace CoreMidiHelpers
                 auto& p = *(packetToSend->packet);
                 p.timeStamp = timeStamp;
                 p.length = (UInt16) dataSize;
-                memcpy (p.data, message.getRawData(), dataSize);
+                memcpy (p.data, message.bytes.data(), dataSize);
             }
             else
             {
@@ -278,7 +278,7 @@ namespace CoreMidiHelpers
             : sender (makeImpl (ep))
         {}
 
-        void send (MIDIPortRef port, MIDIEndpointRef endpoint, const MidiMessage& m)
+        void send (MIDIPortRef port, MIDIEndpointRef endpoint, const ump::BytestreamMidiView& m)
         {
             sender->send (port, endpoint, m);
         }
@@ -379,7 +379,7 @@ namespace CoreMidiHelpers
                 endpoint.release();
         }
 
-        void send (const MidiMessage& m)
+        void send (const ump::BytestreamMidiView& m)
         {
             sender.send (*port, *endpoint, m);
         }
@@ -579,9 +579,10 @@ namespace CoreMidiHelpers
        #endif
     }
 
-    static void globalSystemChangeCallback (const MIDINotification*, void*)
+    static void globalSystemChangeCallback (const MIDINotification* notification, void*)
     {
-        // TODO.. Should pass-on this notification..
+        if (notification != nullptr && notification->messageID == kMIDIMsgSetupChanged)
+            MidiDeviceListConnectionBroadcaster::get().notify();
     }
 
     static String getGlobalMidiClientName()
@@ -594,9 +595,7 @@ namespace CoreMidiHelpers
 
     static MIDIClientRef getGlobalMidiClient()
     {
-        static MIDIClientRef globalMidiClient = 0;
-
-        if (globalMidiClient == 0)
+        static const auto globalMidiClient = [&]
         {
             // Since OSX 10.6, the MIDIClientCreate function will only work
             // correctly when called from the message thread!
@@ -605,8 +604,10 @@ namespace CoreMidiHelpers
             enableSimulatorMidiSession();
 
             CFUniquePtr<CFStringRef> name (getGlobalMidiClientName().toCFString());
-            CHECK_ERROR (MIDIClientCreate (name.get(), &globalSystemChangeCallback, nullptr, &globalMidiClient));
-        }
+            MIDIClientRef result{};
+            CHECK_ERROR (MIDIClientCreate (name.get(), globalSystemChangeCallback, nullptr, &result));
+            return result;
+        }();
 
         return globalMidiClient;
     }
@@ -1297,7 +1298,13 @@ MidiOutput::~MidiOutput()
 
 void MidiOutput::sendMessageNow (const MidiMessage& message)
 {
-    internal->send (message);
+    internal->send (ump::BytestreamMidiView (&message));
+}
+
+MidiDeviceListConnection MidiDeviceListConnection::make (std::function<void()> cb)
+{
+    auto& broadcaster = MidiDeviceListConnectionBroadcaster::get();
+    return { &broadcaster, broadcaster.add (std::move (cb)) };
 }
 
 #undef CHECK_ERROR

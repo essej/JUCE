@@ -1,7 +1,84 @@
 JUCE breaking changes
 =====================
 
-Version 7.0.2
+develop
+=======
+
+Change
+------
+The minimum supported AAX library version has been bumped to 2.4.0 and the
+library is now built automatically while building an AAX plugin. The
+JucePlugin_AAXLibs_path preprocessor definition is no longer defined in AAX
+plugin builds.
+
+Possible Issues
+---------------
+Projects that use the JucePlugin_AAXLibs_path definition may no longer build
+correctly. Projects that reference an AAX library version earlier than 2.4.0
+will fail to build.
+
+Workaround
+----------
+You must download an AAX library distribution with a version of at least 2.4.0.
+Use the definition JucePlugin_Build_AAX to check whether the AAX format is
+enabled at build time.
+
+Rationale
+---------
+The JUCE framework now requires features only present in version 2.4.0 of the
+AAX library. The build change removes steps from the build process, and ensures
+that the same compiler flags are used across the entire project.
+
+
+Change
+------
+The implementation of ColourGradient::createLookupTable has been updated to use
+non-premultiplied colours.
+
+Possible Issues
+---------------
+Programs that draw transparent gradients using the OpenGL or software
+renderers, or that use lookup tables generated from transparent gradients for
+other purposes, may now produce different results.
+
+Workaround
+----------
+For gradients to render the same as they did previously, transparent colour
+stops should be un-premultiplied. For colours with an alpha component of 0, it
+may be necessary to specify appropriate RGB components.
+
+Rationale
+---------
+Previously, transparent gradients rendered using CoreGraphics looked different
+to the same gradients drawn using OpenGL or the software renderer. This change
+updates the OpenGL and software renderers, so that they produce the same
+results as CoreGraphics.
+
+
+Change
+------
+Projucer-generated MSVC projects now build VST3s as bundles, rather than as
+single DLL files.
+
+Possible Issues
+---------------
+Build workflows that expect the VST3 to be a single DLL may break.
+
+Workaround
+----------
+Any post-build scripts that expect to copy or move the built VST3 should be
+updated so that the entire bundle directory is copied/moved. The DLL itself
+can still be located and extracted from within the generated bundle if
+necessary.
+
+Rationale
+---------
+Distributing VST3s as single files was deprecated in VST3 v3.6.10. JUCE's CMake
+scripts already produce VST3s as bundles, so this change increases consistency
+between the two build systems.
+
+
+Version 7.0.3
 =============
 
 Change

@@ -35,7 +35,7 @@
 
   ID:                 juce_gui_basics
   vendor:             juce
-  version:            7.0.3
+  version:            7.0.5
   name:               JUCE GUI core classes
   description:        Basic user-interface components and related classes.
   website:            http://www.juce.com/juce
@@ -167,7 +167,7 @@ namespace juce
     class Grid;
     class FocusOutline;
 
-   #if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX
+   #if JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
     Image createSnapshotOfNativeWindow (void* nativeWindowHandle);
    #endif
 }
@@ -323,7 +323,9 @@ namespace juce
 #if JUCE_LINUX || JUCE_BSD
  #if JUCE_GUI_BASICS_INCLUDE_XHEADERS
   // If you're missing these headers, you need to install the libx11-dev package
+  JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wvariadic-macros")
   #include <X11/Xlib.h>
+  JUCE_END_IGNORE_WARNINGS_GCC_LIKE
   #include <X11/Xatom.h>
   #include <X11/Xresource.h>
   #include <X11/Xutil.h>

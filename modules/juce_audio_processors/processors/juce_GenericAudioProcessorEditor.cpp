@@ -102,6 +102,8 @@ class ParameterComponent : public Component,
 {
 public:
     using ParameterListener::ParameterListener;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParameterComponent)
 };
 
 //==============================================================================
@@ -291,7 +293,7 @@ private:
             index = roundToInt (getParameter().getValue() * (float) (parameterValues.size() - 1));
         }
 
-        box.setSelectedItemIndex (index);
+        box.setSelectedItemIndex (index, dontSendNotification);
     }
 
     void boxChanged()

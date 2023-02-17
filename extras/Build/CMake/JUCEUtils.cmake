@@ -270,6 +270,7 @@ function(_juce_write_configure_time_info target)
     _juce_append_target_property(file_content APP_GROUP_IDS                        ${target} JUCE_APP_GROUP_IDS)
     _juce_append_target_property(file_content IS_PLUGIN                            ${target} JUCE_IS_PLUGIN)
     _juce_append_target_property(file_content ICLOUD_PERMISSIONS_ENABLED           ${target} JUCE_ICLOUD_PERMISSIONS_ENABLED)
+    _juce_append_target_property(file_content IS_AU_PLUGIN_HOST                    ${target} JUCE_PLUGINHOST_AU)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         _juce_append_record(file_content IS_IOS 1)
@@ -835,7 +836,7 @@ endfunction()
 # ==================================================================================================
 
 function(_juce_add_lv2_manifest_helper_target)
-    if(TARGET juce_lv2_helper)
+    if(TARGET juce_lv2_helper OR (CMAKE_SYSTEM_NAME STREQUAL "iOS") OR (CMAKE_SYSTEM_NAME STREQUAL "Android"))
         return()
     endif()
 
@@ -843,9 +844,12 @@ function(_juce_add_lv2_manifest_helper_target)
     set(source "${module_path}/juce_audio_plugin_client/LV2/juce_LV2TurtleDumpProgram.cpp")
     add_executable(juce_lv2_helper "${source}")
     add_executable(juce::juce_lv2_helper ALIAS juce_lv2_helper)
-    target_compile_features(juce_lv2_helper PRIVATE cxx_std_14)
+    target_compile_features(juce_lv2_helper PRIVATE cxx_std_17)
     set_target_properties(juce_lv2_helper PROPERTIES BUILD_WITH_INSTALL_RPATH ON)
     target_link_libraries(juce_lv2_helper PRIVATE ${CMAKE_DL_LIBS})
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(juce_lv2_helper PRIVATE Threads::Threads)
 endfunction()
 
 # ==================================================================================================
@@ -1293,6 +1297,12 @@ function(_juce_set_fallback_properties target)
 
     get_target_property(real_company_name ${target} JUCE_COMPANY_NAME)
     _juce_set_property_if_not_set(${target} BUNDLE_ID "com.${real_company_name}.${target}")
+
+    get_target_property(applied_bundle_id ${target} JUCE_BUNDLE_ID)
+
+    if("${applied_bundle_id}" MATCHES ".* .*")
+        message(WARNING "Target ${target} has JUCE_BUNDLE_ID '${applied_bundle_id}', which contains spaces. Use the BUNDLE_ID option to specify a valid ID.")
+    endif()
 
     _juce_set_property_if_not_set(${target} VERSION ${PROJECT_VERSION})
 
@@ -1889,11 +1899,15 @@ function(juce_add_pip header)
                 list(APPEND extra_formats VST)
             endif()
 
+            if(NOT (CMAKE_SYSTEM_NAME MATCHES ".*BSD"))
+                list(APPEND extra_formats VST3)
+            endif()
+
             # Standalone plugins might want to access the mic
             list(APPEND extra_target_args MICROPHONE_PERMISSION_ENABLED TRUE)
 
             juce_add_plugin(${JUCE_PIP_NAME}
-                FORMATS AU AUv3 LV2 Standalone Unity VST3 ${extra_formats}
+                FORMATS AU AUv3 LV2 Standalone Unity ${extra_formats}
                 ${extra_target_args})
         endif()
     elseif(pip_kind STREQUAL "Component")
@@ -1993,12 +2007,7 @@ function(juce_set_aax_sdk_path path)
         message(FATAL_ERROR "Could not find AAX SDK at the specified path: ${path}")
     endif()
 
-    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        add_library(juce_aax_sdk STATIC IMPORTED GLOBAL)
-        set_target_properties(juce_aax_sdk PROPERTIES
-            IMPORTED_LOCATION_DEBUG "${path}/Libs/Debug/libAAXLibrary_libcpp.a"
-            IMPORTED_LOCATION "${path}/Libs/Release/libAAXLibrary_libcpp.a")
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    if((CMAKE_SYSTEM_NAME STREQUAL "Darwin") OR (CMAKE_SYSTEM_NAME STREQUAL "Windows"))
         add_library(juce_aax_sdk INTERFACE IMPORTED GLOBAL)
     else()
         return()
@@ -2008,7 +2017,6 @@ function(juce_set_aax_sdk_path path)
         "${path}"
         "${path}/Interfaces"
         "${path}/Interfaces/ACF")
-    target_compile_definitions(juce_aax_sdk INTERFACE JucePlugin_AAXLibs_path="${path}/Libs")
     set_target_properties(juce_aax_sdk PROPERTIES INTERFACE_JUCE_AAX_DEFAULT_ICON "${path}/Utilities/PlugIn.ico")
 endfunction()
 

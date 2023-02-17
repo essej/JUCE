@@ -2805,13 +2805,14 @@ public:
 
     ~VSTPluginWindow() override
     {
+        activeVSTWindows.removeFirstMatchingValue (this);
+
         closePluginWindow();
 
        #if JUCE_MAC
         cocoaWrapper.reset();
        #endif
 
-        activeVSTWindows.removeFirstMatchingValue (this);
         plugin.editorBeingDeleted (this);
     }
 
@@ -3037,8 +3038,8 @@ public:
 
     void broughtToFront() override
     {
-        activeVSTWindows.removeFirstMatchingValue (this);
-        activeVSTWindows.add (this);
+        if (activeVSTWindows.removeFirstMatchingValue (this) != -1)
+            activeVSTWindows.add (this);
 
        #if JUCE_MAC
         dispatch (Vst2::effEditTop, 0, 0, nullptr, 0);
@@ -3440,7 +3441,7 @@ AudioProcessorEditor* VSTPluginInstance::createEditor()
    #endif
 }
 
-bool VSTPluginInstance::updateSizeFromEditor (int w, int h)
+bool VSTPluginInstance::updateSizeFromEditor ([[maybe_unused]] int w, [[maybe_unused]] int h)
 {
    #if ! JUCE_IOS && ! JUCE_ANDROID
     if (auto* editor = dynamic_cast<VSTPluginWindow*> (getActiveEditor()))

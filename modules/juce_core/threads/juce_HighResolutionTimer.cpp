@@ -23,7 +23,7 @@
 namespace juce
 {
 
-class HighResolutionTimer::Pimpl : private Thread
+class HighResolutionTimer::Pimpl : public Thread
 {
     using steady_clock = std::chrono::steady_clock;
     using milliseconds = std::chrono::milliseconds;
@@ -44,6 +44,8 @@ public:
             periodMillis = periodMs;
             nextTickTime = steady_clock::now() + milliseconds (periodMillis);
         }
+
+        waitEvent.notify_one();
 
         if (! isThreadRunning())
             startThread (Thread::Priority::high);
