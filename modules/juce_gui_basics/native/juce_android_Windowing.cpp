@@ -1361,7 +1361,7 @@ public:
             if (isTimerRunning())
                 return;
 
-            startTimer (500);
+            startTimer (750);
         }
         else
         {
@@ -1383,7 +1383,7 @@ public:
             DBG("Setting fullscreen new bounds: " << newBounds.toString());
             setBounds (newBounds, shouldBeFullScreen);
             if (!isTimerRunning()) {
-                startTimer (750);
+                startTimer (1000);
             }
         }
 
