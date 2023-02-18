@@ -608,6 +608,7 @@ private:
                 mo << newLine;
             }
 
+            libraries.addArray (userLibraries);
             mo << "target_link_libraries( ${BINARY_NAME}";
             if (libraries.size() > 0)
             {
@@ -621,9 +622,6 @@ private:
 
             if (useOboe)
                 mo << "    \"oboe\"" << newLine;
-
-            for (auto& lib : userLibraries)
-                mo << "    [[" << lib << "]]" << newLine;
 
             mo << ")" << newLine;
         });
