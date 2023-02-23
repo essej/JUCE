@@ -439,6 +439,12 @@ private:
         if (! isEnabled())
             return;
 
+        bool clickOnMouseUp = false;
+        if (Viewport * vp = findParentComponentOfClass<Viewport>()) {
+            clickOnMouseUp = vp->getScrollOnDragMode() != Viewport::ScrollOnDragMode::never;
+            needSelectionOnMouseUp = clickOnMouseUp;
+        }
+        
         if (auto* itemComponent = getItemComponentAt (e.getPosition()))
         {
             auto& item = itemComponent->getRepresentedItem();
@@ -452,7 +458,7 @@ private:
                 if (e.x >= pos.getX() - owner.getIndentSize())
                     item.setOpen (! item.isOpen());
             }
-            else
+            else if (!needSelectionOnMouseUp)
             {
                 // mouse-down inside the body of the item..
                 if (! owner.isMultiSelectEnabled())
@@ -462,7 +468,7 @@ private:
                 else
                     selectBasedOnModifiers (item, e.mods);
 
-                if (e.x >= pos.getX())
+                if (!clickOnMouseUp && e.x >= pos.getX())
                     item.itemClicked (e.withNewPosition (e.position - pos.getPosition().toFloat()));
             }
         }
@@ -472,9 +478,24 @@ private:
     {
         updateItemUnderMouse (e);
 
-        if (isEnabled() && needSelectionOnMouseUp && e.mouseWasClicked())
-            if (auto* itemComponent = getItemComponentAt (e.getPosition()))
-                selectBasedOnModifiers (itemComponent->getRepresentedItem(), e.mods);
+        bool clickOnMouseUp = false;
+        if (Viewport * vp = findParentComponentOfClass<Viewport>()) {
+            clickOnMouseUp = vp->getScrollOnDragMode() != Viewport::ScrollOnDragMode::never;
+        }
+        
+        if (isEnabled() && (needSelectionOnMouseUp || clickOnMouseUp) && e.mouseWasClicked()) {
+            if (auto* itemComponent = getItemComponentAt (e.getPosition())) {
+                auto& item = itemComponent->getRepresentedItem();
+                auto pos = item.getItemPosition (false);
+
+                if (needSelectionOnMouseUp)
+                    selectBasedOnModifiers (item, e.mods);
+            
+                if (clickOnMouseUp && e.x >= pos.getX())
+                    item.itemClicked (e.withNewPosition (e.position - pos.getPosition().toFloat()));
+            }
+        }
+        
     }
 
     void mouseDoubleClickInternal (const MouseEvent& e)
