@@ -1889,6 +1889,8 @@ String String::formattedRaw (const char* pf, ...)
 //==============================================================================
 int String::getIntValue() const noexcept            { return text.getIntValue32(); }
 int64 String::getLargeIntValue() const noexcept     { return text.getIntValue64(); }
+uint64 String::getUnsignedLargeIntValue() const noexcept     { return text.getUIntValue64(); }
+
 float String::getFloatValue() const noexcept        { return (float) getDoubleValue(); }
 double String::getDoubleValue() const noexcept      { return text.getDoubleValue(); }
 

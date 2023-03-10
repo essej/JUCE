@@ -1071,6 +1071,11 @@ public:
     */
     int64 getLargeIntValue() const noexcept;
 
+    /** Reads the value of the string as a decimal number (up to 64 bits in size).
+        @returns the value of the string as a 64 bit signed base-10 unsigned integer.
+    */
+    uint64 getUnsignedLargeIntValue() const noexcept;
+
     /** Parses a decimal number from the end of the string.
 
         This will look for a value at the end of the string.
