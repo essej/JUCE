@@ -106,12 +106,22 @@ public:
             asBase().performSelection (e, false);
         else
             selectRowOnMouseUp = true;
+
+        if (getOwner().getRowClickedOnMouseDown()) {
+            if (auto* m = getOwner().getListBoxModel())
+                m->listBoxItemClicked (row, e);
+        }
     }
 
     void mouseUp (const MouseEvent& e) override
     {
         if (asBase().isEnabled() && selectRowOnMouseUp && ! (isDragging || isDraggingToScroll))
             asBase().performSelection (e, true);
+
+        if (!getOwner().getRowClickedOnMouseDown() && ! (isDragging || isDraggingToScroll)) {
+            if (auto* m = getOwner().getListBoxModel())
+                m->listBoxItemClicked (row, e);
+        }
     }
 
     void mouseDrag (const MouseEvent& e) override
@@ -200,8 +210,8 @@ public:
     {
         owner.selectRowsBasedOnModifierKeys (getRow(), e.mods, isMouseUp);
 
-        if (auto* m = owner.getListBoxModel())
-            m->listBoxItemClicked (getRow(), e);
+        //if (auto* m = owner.getListBoxModel())
+        //    m->listBoxItemClicked (getRow(), e);
     }
 
     void mouseDoubleClick (const MouseEvent& e) override
@@ -591,6 +601,7 @@ void ListBox::setModel (ListBoxModel* const newModel)
 void ListBox::setMultipleSelectionEnabled (bool b) noexcept         { multipleSelection = b; }
 void ListBox::setClickingTogglesRowSelection (bool b) noexcept      { alwaysFlipSelection = b; }
 void ListBox::setRowSelectedOnMouseDown (bool b) noexcept           { selectOnMouseDown = b; }
+void ListBox::setRowClickedOnMouseDown (bool b) noexcept           { clickOnMouseDown = b; }
 
 void ListBox::setMouseMoveSelectsRows (bool b)
 {
@@ -810,13 +821,13 @@ void ListBox::selectRowsBasedOnModifierKeys (const int row,
                                              ModifierKeys mods,
                                              const bool isMouseUpEvent)
 {
-    if (multipleSelection && (mods.isCommandDown() || alwaysFlipSelection))
-    {
-        flipRowSelection (row);
-    }
-    else if (multipleSelection && mods.isShiftDown() && lastRowSelected >= 0)
+    if (multipleSelection && mods.isShiftDown() && lastRowSelected >= 0)
     {
         selectRangeOfRows (lastRowSelected, row);
+    }
+    else if ((multipleSelection && mods.isCommandDown()) || alwaysFlipSelection)
+    {
+        flipRowSelection (row);
     }
     else if ((! mods.isPopupMenu()) || ! isRowSelected (row))
     {
