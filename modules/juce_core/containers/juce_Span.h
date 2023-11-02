@@ -88,6 +88,8 @@ namespace detail
     or other similar container.
 
     This is a bit like std::span from C++20, but with a more limited interface.
+
+    @tags{Core}
 */
 template <typename Value, size_t Extent = dynamicExtent>
 class Span : private detail::NumBase<Extent> // for empty-base optimisation
@@ -111,6 +113,10 @@ public:
     constexpr Span (const Span&) = default;
 
     constexpr Span& operator= (const Span&) = default;
+
+    constexpr Span (Span&&) noexcept = default;
+
+    constexpr Span& operator= (Span&&) noexcept = default;
 
     using Base::size;
 

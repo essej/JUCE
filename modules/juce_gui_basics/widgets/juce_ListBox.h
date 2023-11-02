@@ -156,6 +156,11 @@ public:
     */
     virtual var getDragSourceDescription (const SparseSet<int>& rowsToDescribe);
 
+    /** Called when starting a drag operation on a list row to determine whether the item may be
+        dragged to other windows. Returns true by default.
+    */
+    virtual bool mayDragToExternalWindows() const   { return true; }
+
     /** You can override this to provide tool tips for specific rows.
         @see TooltipClient
     */
@@ -216,7 +221,7 @@ public:
     void setModel (ListBoxModel* newModel);
 
     /** Returns the current list model. */
-    ListBoxModel* getModel() const noexcept
+    ListBoxModel* getListBoxModel() const noexcept
     {
        #if ! JUCE_DISABLE_ASSERTIONS
         checkModelPtrIsValid();
@@ -246,7 +251,6 @@ public:
         the ctrl/shift keys are held down.
     */
     void setMultipleSelectionEnabled (bool shouldBeEnabled) noexcept;
-    bool getMultipleSelectionEnabled () const noexcept { return multipleSelection; }
 
     /** If enabled, this makes the listbox flip the selection status of
         each row that the user clicks, without affecting other selected rows.
@@ -256,21 +260,17 @@ public:
         down CMD or CTRL when clicking.
     */
     void setClickingTogglesRowSelection (bool flipRowSelection) noexcept;
-    bool getClickingTogglesRowSelection () const noexcept { return alwaysFlipSelection; }
 
     /** Sets whether a row should be selected when the mouse is pressed or released.
         By default this is true, but you may want to turn it off.
     */
     void setRowSelectedOnMouseDown (bool isSelectedOnMouseDown) noexcept;
-    bool getRowSelectedOnMouseDown () const noexcept { return selectOnMouseDown; }
 
-    /** Sets whether a row should be selected when the mouse is pressed or released.
-     By default this is true, but you may want to turn it off.
-     */
-    void setRowClickedOnMouseDown (bool clicksOnMouseDown) noexcept;
-    bool getRowClickedOnMouseDown () const noexcept { return clickOnMouseDown; }
+    /** Gets whether a row should be selected when the mouse is pressed or released.
+        By default this is true, but you may want to turn it off.
+    */
+    bool getRowSelectedOnMouseDown() const                  { return selectOnMouseDown; }
 
-    
     /** Makes the list react to mouse moves by selecting the row that the mouse if over.
 
         This function is here primarily for the ComboBox class to use, but might be
@@ -612,6 +612,9 @@ public:
     void setSelectedRows (const SparseSet<int>&, bool);
    #endif
 
+    [[deprecated ("The name of this function is ambiguous if derived classes supply their own models, use getListBoxModel instead")]]
+    ListBoxModel* getModel() const noexcept  { return getListBoxModel(); }
+
 private:
     //==============================================================================
     JUCE_PUBLIC_IN_DLL_BUILD (class ListViewport)
@@ -626,7 +629,7 @@ private:
     int totalItems = 0, rowHeight = 22, minimumRowWidth = 0;
     int outlineThickness = 0;
     int lastRowSelected = -1;
-    bool multipleSelection = false, alwaysFlipSelection = false, hasDoneInitialUpdate = false, selectOnMouseDown = true, clickOnMouseDown = true;
+    bool multipleSelection = false, alwaysFlipSelection = false, hasDoneInitialUpdate = false, selectOnMouseDown = true;
 
    #if ! JUCE_DISABLE_ASSERTIONS
     std::weak_ptr<ListBoxModel::Empty> weakModelPtr;

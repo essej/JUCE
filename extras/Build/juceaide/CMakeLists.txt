@@ -28,13 +28,17 @@
 
 if(JUCE_BUILD_HELPER_TOOLS)
     # Build the tool for the current system
-    juce_add_console_app(juceaide)
+    juce_add_console_app(juceaide _NO_RESOURCERC)
 
     target_sources(juceaide PRIVATE Main.cpp)
 
     target_compile_definitions(juceaide PRIVATE
         JUCE_DISABLE_JUCE_VERSION_PRINTING=1
-        JUCE_USE_CURL=0)
+        JUCE_USE_CURL=0
+        # This is a temporary workaround to allow builds to complete on Xcode 15.
+        # Add -Wl,-ld_classic to the OTHER_LDFLAGS build setting if you need to
+        # deploy to older versions of macOS.
+        JUCE_SILENCE_XCODE_15_LINKER_WARNING=1)
 
     target_link_libraries(juceaide PRIVATE
         juce::juce_build_tools
@@ -49,14 +53,8 @@ if(JUCE_BUILD_HELPER_TOOLS)
            NAMESPACE juce_tools::
            FILE "${JUCE_BINARY_DIR}/JUCEToolsExport.cmake")
 else()
-    # If we're building using the NDK, the gradle wrapper will try to inject its own compiler using
-    # environment variables, which is unfortunate because we really don't want to cross-compile
-    # juceaide.
-    # Similarly, when cross-compiling from Linux->Windows (e.g. using
-    # Fedora's mingw64-cmake command), the environment might be configured
-    # for cross-compiling, and we'll need to attempt to put it back to the
-    # host settings in order to build an executable that can run on the host
-    # machine.
+    message(STATUS "Configuring juceaide")
+
     if(CMAKE_CROSSCOMPILING)
         unset(ENV{ADDR2LINE})
         unset(ENV{AR})
@@ -99,7 +97,10 @@ else()
         endif()
     endif()
 
-    message(STATUS "Configuring juceaide")
+    # Generator platform is only supported on specific generators
+    if(CMAKE_GENERATOR MATCHES "^Visual Studio.*$")
+        set(ENV{CMAKE_GENERATOR_PLATFORM} "${CMAKE_HOST_SYSTEM_PROCESSOR}")
+    endif()
 
     # Looks like we're bootstrapping, reinvoke CMake
     execute_process(COMMAND "${CMAKE_COMMAND}"
@@ -110,6 +111,7 @@ else()
             "-DCMAKE_BUILD_TYPE=Debug"
             "-DJUCE_BUILD_HELPER_TOOLS=ON"
             "-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}"
+            ${extra_compiler_flag_arguments}
         WORKING_DIRECTORY "${JUCE_SOURCE_DIR}"
         OUTPUT_VARIABLE command_output
         ERROR_VARIABLE command_output

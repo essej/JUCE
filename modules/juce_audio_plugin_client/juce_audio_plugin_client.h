@@ -35,7 +35,7 @@
 
   ID:                 juce_audio_plugin_client
   vendor:             juce
-  version:            7.0.5
+  version:            7.0.8
   name:               JUCE audio plugin wrapper classes
   description:        Classes for building VST, VST3, AU, AUv3, LV2 and AAX plugins.
   website:            http://www.juce.com/juce
@@ -127,4 +127,4 @@
  #define JUCE_STANDALONE_FILTER_WINDOW_USE_KIOSK_MODE (JUCE_IOS || JUCE_ANDROID)
 #endif
 
-#include "utility/juce_CreatePluginFilter.h"
+#include "detail/juce_CreatePluginFilter.h"

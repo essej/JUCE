@@ -172,7 +172,7 @@ public:
         This is used by the ToolbarItemPalette and related classes for making the items draggable,
         and is unlikely to be of much use in end-user-code.
     */
-    void setEditingMode (const ToolbarEditingMode newMode);
+    void setEditingMode (ToolbarEditingMode newMode);
 
     /** Returns the current editing mode of this component.
 
@@ -192,8 +192,7 @@ public:
 
 private:
     friend class Toolbar;
-    class ItemDragAndDropOverlayComponent;
-    friend class ItemDragAndDropOverlayComponent;
+    friend class detail::ToolbarItemDragAndDropOverlayComponent;
 
     const int itemId;
     ToolbarEditingMode mode;

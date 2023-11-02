@@ -100,8 +100,8 @@ public:
     {
         const auto toReturn = result.extract (obj);
 
-        if (result.isOk() && addRefFn != nullptr && *obj != nullptr)
-            addRefFn (*obj);
+        if (result.isOk() && *obj != nullptr)
+            NullCheckedInvocation::invoke (addRefFn, *obj);
 
         return toReturn;
     }
@@ -241,6 +241,15 @@ static std::optional<Steinberg::Vst::Speaker> getSpeakerType (const AudioChannel
         case AudioChannelSet::ambisonicACN13:    return Steinberg::Vst::kSpeakerACN13;
         case AudioChannelSet::ambisonicACN14:    return Steinberg::Vst::kSpeakerACN14;
         case AudioChannelSet::ambisonicACN15:    return Steinberg::Vst::kSpeakerACN15;
+        case AudioChannelSet::ambisonicACN16:    return Steinberg::Vst::kSpeakerACN16;
+        case AudioChannelSet::ambisonicACN17:    return Steinberg::Vst::kSpeakerACN17;
+        case AudioChannelSet::ambisonicACN18:    return Steinberg::Vst::kSpeakerACN18;
+        case AudioChannelSet::ambisonicACN19:    return Steinberg::Vst::kSpeakerACN19;
+        case AudioChannelSet::ambisonicACN20:    return Steinberg::Vst::kSpeakerACN20;
+        case AudioChannelSet::ambisonicACN21:    return Steinberg::Vst::kSpeakerACN21;
+        case AudioChannelSet::ambisonicACN22:    return Steinberg::Vst::kSpeakerACN22;
+        case AudioChannelSet::ambisonicACN23:    return Steinberg::Vst::kSpeakerACN23;
+        case AudioChannelSet::ambisonicACN24:    return Steinberg::Vst::kSpeakerACN24;
         case AudioChannelSet::topSideLeft:       return Steinberg::Vst::kSpeakerTsl;
         case AudioChannelSet::topSideRight:      return Steinberg::Vst::kSpeakerTsr;
         case AudioChannelSet::bottomFrontLeft:   return Steinberg::Vst::kSpeakerBfl;
@@ -254,15 +263,6 @@ static std::optional<Steinberg::Vst::Speaker> getSpeakerType (const AudioChannel
 
         case AudioChannelSet::discreteChannel0:  return Steinberg::Vst::kSpeakerM;
 
-        case AudioChannelSet::ambisonicACN16:
-        case AudioChannelSet::ambisonicACN17:
-        case AudioChannelSet::ambisonicACN18:
-        case AudioChannelSet::ambisonicACN19:
-        case AudioChannelSet::ambisonicACN20:
-        case AudioChannelSet::ambisonicACN21:
-        case AudioChannelSet::ambisonicACN22:
-        case AudioChannelSet::ambisonicACN23:
-        case AudioChannelSet::ambisonicACN24:
         case AudioChannelSet::ambisonicACN25:
         case AudioChannelSet::ambisonicACN26:
         case AudioChannelSet::ambisonicACN27:
@@ -274,6 +274,34 @@ static std::optional<Steinberg::Vst::Speaker> getSpeakerType (const AudioChannel
         case AudioChannelSet::ambisonicACN33:
         case AudioChannelSet::ambisonicACN34:
         case AudioChannelSet::ambisonicACN35:
+        case AudioChannelSet::ambisonicACN36:
+        case AudioChannelSet::ambisonicACN37:
+        case AudioChannelSet::ambisonicACN38:
+        case AudioChannelSet::ambisonicACN39:
+        case AudioChannelSet::ambisonicACN40:
+        case AudioChannelSet::ambisonicACN41:
+        case AudioChannelSet::ambisonicACN42:
+        case AudioChannelSet::ambisonicACN43:
+        case AudioChannelSet::ambisonicACN44:
+        case AudioChannelSet::ambisonicACN45:
+        case AudioChannelSet::ambisonicACN46:
+        case AudioChannelSet::ambisonicACN47:
+        case AudioChannelSet::ambisonicACN48:
+        case AudioChannelSet::ambisonicACN49:
+        case AudioChannelSet::ambisonicACN50:
+        case AudioChannelSet::ambisonicACN51:
+        case AudioChannelSet::ambisonicACN52:
+        case AudioChannelSet::ambisonicACN53:
+        case AudioChannelSet::ambisonicACN54:
+        case AudioChannelSet::ambisonicACN55:
+        case AudioChannelSet::ambisonicACN56:
+        case AudioChannelSet::ambisonicACN57:
+        case AudioChannelSet::ambisonicACN58:
+        case AudioChannelSet::ambisonicACN59:
+        case AudioChannelSet::ambisonicACN60:
+        case AudioChannelSet::ambisonicACN61:
+        case AudioChannelSet::ambisonicACN62:
+        case AudioChannelSet::ambisonicACN63:
         case AudioChannelSet::wideLeft:
         case AudioChannelSet::wideRight:
         case AudioChannelSet::unknown:
@@ -323,6 +351,15 @@ static std::optional<AudioChannelSet::ChannelType> getChannelType (Steinberg::Vs
         case Steinberg::Vst::kSpeakerACN13: return AudioChannelSet::ambisonicACN13;
         case Steinberg::Vst::kSpeakerACN14: return AudioChannelSet::ambisonicACN14;
         case Steinberg::Vst::kSpeakerACN15: return AudioChannelSet::ambisonicACN15;
+        case Steinberg::Vst::kSpeakerACN16: return AudioChannelSet::ambisonicACN16;
+        case Steinberg::Vst::kSpeakerACN17: return AudioChannelSet::ambisonicACN17;
+        case Steinberg::Vst::kSpeakerACN18: return AudioChannelSet::ambisonicACN18;
+        case Steinberg::Vst::kSpeakerACN19: return AudioChannelSet::ambisonicACN19;
+        case Steinberg::Vst::kSpeakerACN20: return AudioChannelSet::ambisonicACN20;
+        case Steinberg::Vst::kSpeakerACN21: return AudioChannelSet::ambisonicACN21;
+        case Steinberg::Vst::kSpeakerACN22: return AudioChannelSet::ambisonicACN22;
+        case Steinberg::Vst::kSpeakerACN23: return AudioChannelSet::ambisonicACN23;
+        case Steinberg::Vst::kSpeakerACN24: return AudioChannelSet::ambisonicACN24;
         case Steinberg::Vst::kSpeakerTsl:   return AudioChannelSet::topSideLeft;
         case Steinberg::Vst::kSpeakerTsr:   return AudioChannelSet::topSideRight;
         case Steinberg::Vst::kSpeakerLcs:   return AudioChannelSet::leftSurroundRear;
@@ -388,6 +425,8 @@ namespace detail
         { k70_6,                        { X::left, X::right, X::centre,         X::leftSurroundRear, X::rightSurroundRear, X::leftSurroundSide, X::rightSurroundSide, X::topFrontLeft, X::topFrontRight, X::topRearLeft, X::topRearRight, X::topSideLeft, X::topSideRight } },
 
         // The VST3 layout uses 'left/right' and 'left-of-center/right-of-center', but the JUCE layout uses 'left/right' and 'wide-left/wide-right'.
+        { k91_4,                        { X::wideLeft, X::wideRight, X::centre, X::LFE, X::leftSurroundRear, X::rightSurroundRear, X::left, X::right, X::leftSurroundSide, X::rightSurroundSide, X::topFrontLeft, X::topFrontRight, X::topRearLeft, X::topRearRight } },
+        { k90_4,                        { X::wideLeft, X::wideRight, X::centre,         X::leftSurroundRear, X::rightSurroundRear, X::left, X::right, X::leftSurroundSide, X::rightSurroundSide, X::topFrontLeft, X::topFrontRight, X::topRearLeft, X::topRearRight } },
         { k91_6,                        { X::wideLeft, X::wideRight, X::centre, X::LFE, X::leftSurroundRear, X::rightSurroundRear, X::left, X::right, X::leftSurroundSide, X::rightSurroundSide, X::topFrontLeft, X::topFrontRight, X::topRearLeft, X::topRearRight, X::topSideLeft, X::topSideRight } },
         { k90_6,                        { X::wideLeft, X::wideRight, X::centre,         X::leftSurroundRear, X::rightSurroundRear, X::left, X::right, X::leftSurroundSide, X::rightSurroundSide, X::topFrontLeft, X::topFrontRight, X::topRearLeft, X::topRearRight, X::topSideLeft, X::topSideRight } },
     };
@@ -400,7 +439,7 @@ namespace detail
 inline bool isLayoutTableValid()
 {
     for (const auto& item : detail::layoutTable)
-        if ((size_t) countNumberOfBits (item.arrangement) != item.channelOrder.size())
+        if ((size_t) countNumberOfBits ((uint64) item.arrangement) != item.channelOrder.size())
             return false;
 
     std::set<Steinberg::Vst::SpeakerArrangement> arrangements;
@@ -448,6 +487,24 @@ static std::optional<Array<AudioChannelSet::ChannelType>> getSpeakerOrder (Stein
     return {};
 }
 
+struct Ambisonics
+{
+    struct Mapping
+    {
+        Steinberg::Vst::SpeakerArrangement arrangement;
+        AudioChannelSet channelSet;
+    };
+
+    inline static const Mapping mappings[]
+    {
+        { Steinberg::Vst::SpeakerArr::kAmbi5thOrderACN, AudioChannelSet::ambisonic (5) },
+        { Steinberg::Vst::SpeakerArr::kAmbi6thOrderACN, AudioChannelSet::ambisonic (6) },
+        { Steinberg::Vst::SpeakerArr::kAmbi7thOrderACN, AudioChannelSet::ambisonic (7) },
+    };
+
+    Ambisonics() = delete;
+};
+
 static std::optional<Steinberg::Vst::SpeakerArrangement> getVst3SpeakerArrangement (const AudioChannelSet& channels) noexcept
 {
     using namespace Steinberg::Vst::SpeakerArr;
@@ -455,6 +512,10 @@ static std::optional<Steinberg::Vst::SpeakerArrangement> getVst3SpeakerArrangeme
    #if JUCE_DEBUG
     std::call_once (detail::layoutTableCheckedFlag, [] { jassert (isLayoutTableValid()); });
    #endif
+
+    for (const auto& mapping : Ambisonics::mappings)
+        if (channels == mapping.channelSet)
+            return mapping.arrangement;
 
     const auto channelSetMatches = [&channels] (const auto& layoutPair)
     {
@@ -480,6 +541,10 @@ static std::optional<Steinberg::Vst::SpeakerArrangement> getVst3SpeakerArrangeme
 inline std::optional<AudioChannelSet> getChannelSetForSpeakerArrangement (Steinberg::Vst::SpeakerArrangement arr) noexcept
 {
     using namespace Steinberg::Vst::SpeakerArr;
+
+    for (const auto& mapping : Ambisonics::mappings)
+        if (arr == mapping.arrangement)
+            return mapping.channelSet;
 
     if (const auto order = getSpeakerOrder (arr))
         return AudioChannelSet::channelSetWithChannels (*order);
@@ -1101,31 +1166,35 @@ private:
 };
 
 //==============================================================================
+// We have to trust that Steinberg won't double-delete
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDelete)
 template <class ObjectType>
 class VSTComSmartPtr
 {
 public:
-    VSTComSmartPtr() noexcept : source (nullptr) {}
-    VSTComSmartPtr (ObjectType* object, bool autoAddRef = true) noexcept  : source (object)  { if (source != nullptr && autoAddRef) source->addRef(); }
+    VSTComSmartPtr() = default;
     VSTComSmartPtr (const VSTComSmartPtr& other) noexcept : source (other.source)            { if (source != nullptr) source->addRef(); }
     ~VSTComSmartPtr()                                                                        { if (source != nullptr) source->release(); }
 
-    operator ObjectType*() const noexcept    { return source; }
-    ObjectType* get() const noexcept         { return source; }
-    ObjectType& operator*() const noexcept   { return *source; }
-    ObjectType* operator->() const noexcept  { return source; }
+    explicit operator bool() const noexcept           { return operator!= (nullptr); }
+    ObjectType* get() const noexcept                  { return source; }
+    ObjectType& operator*() const noexcept            { return *source; }
+    ObjectType* operator->() const noexcept           { return source; }
 
-    VSTComSmartPtr& operator= (const VSTComSmartPtr& other)       { return operator= (other.source); }
-
-    VSTComSmartPtr& operator= (ObjectType* const newObjectToTakePossessionOf)
+    VSTComSmartPtr& operator= (const VSTComSmartPtr& other)
     {
-        VSTComSmartPtr p (newObjectToTakePossessionOf);
+        auto p = other;
         std::swap (p.source, source);
         return *this;
     }
 
-    bool operator== (ObjectType* const other) noexcept { return source == other; }
-    bool operator!= (ObjectType* const other) noexcept { return source != other; }
+    VSTComSmartPtr& operator= (std::nullptr_t)
+    {
+        return operator= (VSTComSmartPtr{});
+    }
+
+    bool operator== (std::nullptr_t) const noexcept { return source == nullptr; }
+    bool operator!= (std::nullptr_t) const noexcept { return source != nullptr; }
 
     bool loadFrom (Steinberg::FUnknown* o)
     {
@@ -1140,9 +1209,38 @@ public:
         return factory->createInstance (uuid, ObjectType::iid, (void**) &source) == Steinberg::kResultOk;
     }
 
+    /** Increments refcount. */
+    static auto addOwner (ObjectType* t)
+    {
+        return VSTComSmartPtr (t, true);
+    }
+
+    /** Does not initially increment refcount; assumes t has a positive refcount. */
+    static auto becomeOwner (ObjectType* t)
+    {
+        return VSTComSmartPtr (t, false);
+    }
+
 private:
-    ObjectType* source;
+    explicit VSTComSmartPtr (ObjectType* object, bool autoAddRef) noexcept  : source (object)  { if (source != nullptr && autoAddRef) source->addRef(); }
+    ObjectType* source = nullptr;
 };
+
+/** Increments refcount. */
+template <class ObjectType>
+auto addVSTComSmartPtrOwner (ObjectType* t)
+{
+    return VSTComSmartPtr<ObjectType>::addOwner (t);
+}
+
+/** Does not initially increment refcount; assumes t has a positive refcount. */
+template <class ObjectType>
+auto becomeVSTComSmartPtrOwner (ObjectType* t)
+{
+    return VSTComSmartPtr<ObjectType>::becomeOwner (t);
+}
+
+// NOLINTEND(clang-analyzer-cplusplus.NewDelete)
 
 //==============================================================================
 /*  This class stores a plugin's preferred MIDI mappings.

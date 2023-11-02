@@ -44,7 +44,7 @@ namespace ColourHelpers
 
         float hue = 0.0f;
 
-        if (hi > 0 && ! approximatelyEqual (hi, lo))
+        if (hi > 0 && ! exactlyEqual (hi, lo))
         {
             auto invDiff = 1.0f / (float) (hi - lo);
 
@@ -562,7 +562,7 @@ String Colour::toDisplayString (const bool includeAlphaValue) const
 //==============================================================================
 #if JUCE_UNIT_TESTS
 
-class ColourTests  : public UnitTest
+class ColourTests final : public UnitTest
 {
 public:
     ColourTests()
