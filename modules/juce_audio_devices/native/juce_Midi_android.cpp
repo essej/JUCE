@@ -839,7 +839,7 @@ public:
         if (jobject d = javaMidiDevice.get())
             getEnv()->CallVoidMethod (d, JuceMidiPort.stop);
 
-        callback = nullptr;
+        // callback = nullptr;
     }
 
     String getName() const noexcept
