@@ -702,7 +702,7 @@ void AndroidDocumentPermission::takePersistentReadWriteAccess ([[maybe_unused]] 
 void AndroidDocumentPermission::takePersistentReadOnlyAccess ([[maybe_unused]] const URL& url)
 {
    #if JUCE_ANDROID
-    AndroidDocumentDetail::setPermissions (url, ContentResolver19.takePersistableUriPermission, true);
+    AndroidDocumentDetail::setPermissions (url, ContentResolver.takePersistableUriPermission, true);
    #endif
 }
         
