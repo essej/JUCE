@@ -49,7 +49,7 @@ CallOutBox::CallOutBox (Component& c, Rectangle<int> area, Component* const pare
     else
     {
         setAlwaysOnTop (WindowUtils::areThereAnyAlwaysOnTopWindows());
-        updatePosition (area, Desktop::getInstance().getDisplays().getDisplayForRect (area)->userArea);
+        updatePosition (area, Desktop::getInstance().getDisplays().getDisplayForRect (area)->userBounds.getLargestIntegerWithin());
         addToDesktop (ComponentPeer::windowIsTemporary);
 
         startTimer (100);
@@ -201,7 +201,7 @@ bool CallOutBox::keyPressed (const KeyPress& key)
 
 void CallOutBox::updatePosition (const Rectangle<int>& newAreaToPointTo, const Rectangle<int>& newAreaToFitIn)
 {
-    targetArea = newAreaToPointTo;
+    const auto targetAreaChanged = std::exchange (targetArea, newAreaToPointTo) != newAreaToPointTo;
     availableArea = newAreaToFitIn;
 
     auto borderSpace = getBorderSize();
@@ -249,6 +249,10 @@ void CallOutBox::updatePosition (const Rectangle<int>& newAreaToPointTo, const R
                                    (int) (centre.y - (float) hh));
         }
     }
+
+    // The path is refreshed already for bounds changes
+    if (targetAreaChanged && getBounds() == newBounds)
+        refreshPath();
 
     setBounds (newBounds);
 }

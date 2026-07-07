@@ -61,6 +61,7 @@ namespace ProjectMessages
         DECLARE_ID (deprecatedExporter);
         DECLARE_ID (unsupportedArm32Config);
         DECLARE_ID (arm64Warning);
+        DECLARE_ID (lv2PaceProtectionWarning);
 
         DECLARE_ID (notification);
         DECLARE_ID (warning);
@@ -75,7 +76,8 @@ namespace ProjectMessages
         static Identifier warnings[] = { Ids::cppStandard, Ids::moduleNotFound, Ids::jucePath,
                                          Ids::jucerFileModified, Ids::missingModuleDependencies,
                                          Ids::oldProjucer, Ids::pluginCodeInvalid, Ids::manufacturerCodeInvalid,
-                                         Ids::deprecatedExporter, Ids::unsupportedArm32Config, Ids::arm64Warning };
+                                         Ids::deprecatedExporter, Ids::unsupportedArm32Config, Ids::arm64Warning,
+                                         Ids::lv2PaceProtectionWarning };
 
         if (std::find (std::begin (warnings), std::end (warnings), message) != std::end (warnings))
             return Ids::warning;
@@ -103,6 +105,7 @@ namespace ProjectMessages
         if (message == Ids::deprecatedExporter)         return "Deprecated Exporter";
         if (message == Ids::unsupportedArm32Config)     return "Unsupported Architecture";
         if (message == Ids::arm64Warning)               return "Prefer arm64ec over arm64";
+        if (message == Ids::lv2PaceProtectionWarning)   return "LV2 Plugin Format Not Supported by PACE";
 
         jassertfalse;
         return {};
@@ -122,6 +125,7 @@ namespace ProjectMessages
         if (message == Ids::deprecatedExporter)         return "The project includes a deprecated exporter.";
         if (message == Ids::unsupportedArm32Config)     return "The project includes a Visual Studio configuration that uses the 32-bit Arm architecture, which is no longer supported. This configuration has been hidden, and will be removed on save.";
         if (message == Ids::arm64Warning)               return "For software where interoperability is a concern (such as plugins and hosts), arm64ec will provide the best compatibility with existing x64 software";
+        if (message == Ids::lv2PaceProtectionWarning)   return "Either disable the LV2 plugin format or disable PACE Fusion protection on all exporters.";
 
         jassertfalse;
         return {};
@@ -370,6 +374,8 @@ public:
     static Array<var> getAllAUMainTypeVars() noexcept;
     Array<var> getDefaultAUMainTypes() const noexcept;
 
+    String getDefaultLV2PluginClass() const noexcept;
+
     static StringArray getAllVSTCategoryStrings() noexcept;
     Array<var> getDefaultVSTCategories() const noexcept;
 
@@ -391,6 +397,7 @@ public:
 
     String getAUMainTypeString() const noexcept;
     bool isAUSandBoxSafe() const noexcept;
+    String getLV2PluginClassString() const noexcept;
     String getVSTCategoryString() const noexcept;
     String getVST3CategoryString() const noexcept;
     int getAAXCategory() const noexcept;
@@ -421,6 +428,19 @@ public:
     //==============================================================================
     bool shouldBuildTargetType (build_tools::ProjectType::Target::Type targetType) const noexcept;
     static build_tools::ProjectType::Target::Type getTargetTypeFromFilePath (const File& file, bool returnSharedTargetIfNoValidSuffix);
+
+    static String getTargetSuffixWithoutSpaces (const String& target)
+    {
+        if (target.isEmpty())
+            return {};
+
+        return String ("_") + target.removeCharacters (" ");
+    }
+
+    String getTargetBaseName (const String& target)
+    {
+        return getProjectFilenameRootString() + getTargetSuffixWithoutSpaces (target);
+    }
 
     //==============================================================================
     StringPairArray getAppConfigDefs();
@@ -663,7 +683,7 @@ private:
 
     ValueTreePropertyWithDefault pluginFormatsValue, pluginNameValue, pluginDescriptionValue, pluginManufacturerValue, pluginManufacturerCodeValue,
                                  pluginCodeValue, pluginChannelConfigsValue, pluginCharacteristicsValue, pluginAUExportPrefixValue, pluginAAXIdentifierValue,
-                                 pluginAUMainTypeValue, pluginAUSandboxSafeValue, pluginVSTCategoryValue, pluginVST3CategoryValue, pluginAAXCategoryValue,
+                                 pluginAUMainTypeValue, pluginAUSandboxSafeValue, pluginLV2PluginClassValue, pluginVSTCategoryValue, pluginVST3CategoryValue, pluginAAXCategoryValue,
                                  pluginEnableARA, pluginARAAnalyzableContentValue, pluginARAFactoryIDValue, pluginARAArchiveIDValue, pluginARACompatibleArchiveIDsValue, pluginARATransformFlagsValue,
                                  pluginVSTNumMidiInputsValue, pluginVSTNumMidiOutputsValue, pluginLV2URIValue;
 
@@ -731,6 +751,7 @@ private:
     void updateOldProjucerWarning (bool showWarning);
     void updateModuleNotFoundWarning (bool showWarning);
     void updateCodeWarning (Identifier identifier, String value);
+    void updatePaceFusionWarnings();
 
     ValueTree projectMessages { ProjectMessages::Ids::projectMessages, {},
                                 { { ProjectMessages::Ids::notification, {} }, { ProjectMessages::Ids::warning, {} } } };

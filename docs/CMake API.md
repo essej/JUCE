@@ -585,6 +585,11 @@ attributes directly to these creation functions, rather than adding them later.
   `kPlugCategGenerator`. Defaults to `kPlugCategSynth` if `IS_SYNTH` is `TRUE`. Otherwise defaults
   to `kPlugCategEffect`.
 
+`LV2_PLUGIN_CLASS`
+- Should be set to the name of one of the Plugin classes found at
+  https://lv2plug.in/ns/lv2core#Plugin. Defaults to "InstrumentPlugin" for synth plugins, and
+  "Plugin" otherwise.
+
 `VST3_CATEGORIES`
 - Should be one or more, separated by spaces, of the following: `Fx`, `Instrument`, `Analyzer`,
   `Delay`, `Distortion`, `Drum`, `Dynamics`, `EQ`, `External`, `Filter`, `Generator`, `Mastering`,
@@ -606,14 +611,14 @@ attributes directly to these creation functions, rather than adding them later.
 
 `AU_SANDBOX_SAFE`
 - Adds the appropriate entries to an AU plugin's Info.plist. May be either `TRUE` or `FALSE`.
-  Defaults to `FALSE`.
+  Defaults to `FALSE`. If this is `TRUE` then `SUPPRESS_AU_PLIST_RESOURCE_USAGE` has no effect.
 
 `SUPPRESS_AU_PLIST_RESOURCE_USAGE`
 - May be either `TRUE` or `FALSE`. Defaults to `FALSE`. Set this to `TRUE` to disable the
   `resourceUsage` key in the target's plist. This is useful for AU plugins that must access
   resources which cannot be declared in the resourceUsage block, such as UNIX domain sockets. In
   particular, PACE-protected AU plugins may require this option to be enabled in order for the
-  plugin to load in GarageBand.
+  plugin to load in GarageBand. This option has no effect if `AU_SANDBOX_SAFE` is set to `TRUE`.
 
 `AAX_CATEGORY`
 - Should be one or more of: `None`, `EQ`, `Dynamics`, `PitchShift`, `Reverb`, `Delay`, `Modulation`,

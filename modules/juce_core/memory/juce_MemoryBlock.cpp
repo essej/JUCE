@@ -346,9 +346,9 @@ void MemoryBlock::loadFromHexString (StringRef hex)
             {
                 auto c = t.getAndAdvance();
 
-                if (c >= '0' && c <= '9')    { byte |= c - '0';        break; }
-                if (c >= 'a' && c <= 'z')    { byte |= c - ('a' - 10); break; }
-                if (c >= 'A' && c <= 'Z')    { byte |= c - ('A' - 10); break; }
+                if ('0' <= c && c <= '9')    { byte |= c - '0';        break; }
+                if ('a' <= c && c <= 'f')    { byte |= c - ('a' - 10); break; }
+                if ('A' <= c && c <= 'F')    { byte |= c - ('A' - 10); break; }
 
                 if (c == 0)
                 {
@@ -403,23 +403,20 @@ bool MemoryBlock::fromBase64Encoding (StringRef s)
     setSize ((size_t) numBytesNeeded, true);
 
     auto srcChars = dot + 1;
-    int pos = 0;
+    size_t pos = 0;
 
-    for (;;)
+    while (auto c = (int) srcChars.getAndAdvance())
     {
-        auto c = (int) srcChars.getAndAdvance();
-
-        if (c == 0)
-            return true;
-
         c -= 43;
 
         if (isPositiveAndBelow (c, numElementsInArray (base64DecodingTable)))
         {
-            setBitRange ((size_t) pos, 6, base64DecodingTable[c]);
-            pos += 6;
+            setBitRange (pos * 6, 6, base64DecodingTable[c]);
+            pos += 1;
         }
     }
+
+    return true;
 }
 
 } // namespace juce

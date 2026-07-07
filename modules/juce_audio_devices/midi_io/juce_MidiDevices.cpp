@@ -282,7 +282,8 @@ std::unique_ptr<MidiInput> MidiInput::createNewDevice (const String& name, MidiI
     if (! connection)
         return {};
 
-    return Impl::make (session, std::move (connection), 0, { name, {} }, callback, std::move (port));
+    const auto portId = port.getId().dst;
+    return Impl::make (session, std::move (connection), 0, { name, portId }, callback, std::move (port));
 }
 
 void MidiInput::start()
@@ -337,6 +338,7 @@ MidiOutput::MidiOutput (std::shared_ptr<ump::Session> s,
       storedInfo (i),
       group (g)
 {
+    mainPackets.reserve (2048);
 }
 
 Array<MidiDeviceInfo> MidiOutput::getAvailableDevices()
@@ -391,7 +393,8 @@ std::unique_ptr<MidiOutput> MidiOutput::createNewDevice (const String& name)
     if (! connection)
         return {};
 
-    return rawToUniquePtr (new MidiOutput (session, std::move (connection), 0, { name, {} }, std::move (port)));
+    const auto portId = port.getId().src;
+    return rawToUniquePtr (new MidiOutput (session, std::move (connection), 0, { name, portId }, std::move (port)));
 }
 
 MidiDeviceInfo MidiOutput::getDeviceInfo() const noexcept

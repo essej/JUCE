@@ -116,12 +116,12 @@ void Label::setEditable (bool editOnSingleClick,
     editDoubleClick = editOnDoubleClick;
     lossOfFocusDiscardsChanges = lossOfFocusDiscards;
 
-    const auto isKeybordFocusable = (editOnSingleClick || editOnDoubleClick);
+    const auto isKeyboardFocusable = (editOnSingleClick || editOnDoubleClick);
 
-    setWantsKeyboardFocus (isKeybordFocusable);
-    setFocusContainerType (isKeybordFocusable ? FocusContainerType::keyboardFocusContainer
-                                              : FocusContainerType::none);
-    setInterceptsMouseClicks(isKeybordFocusable, isKeybordFocusable);
+    setWantsKeyboardFocus (isKeyboardFocusable);
+    setFocusContainerType (isKeyboardFocusable ? FocusContainerType::keyboardFocusContainer
+                                               : FocusContainerType::none);
+    setInterceptsMouseClicks(isKeyboardFocusable, isKeyboardFocusable);
     invalidateAccessibilityHandler();
 }
 

@@ -32,7 +32,14 @@
 
 cmake_minimum_required(VERSION 3.22)
 
-project(JUCE VERSION 8.0.12 LANGUAGES C CXX)
+get_property(_juce_initial_global_languages GLOBAL PROPERTY ENABLED_LANGUAGES)
+
+project(JUCE VERSION 8.0.14 LANGUAGES C CXX)
+
+if(NOT (JUCE_IS_TOP_LEVEL OR "C" IN_LIST _juce_initial_global_languages))
+    message(FATAL_ERROR "A C compiler is required to build targets that depend on JUCE. "
+        "Add 'C' to your project's LANGUAGES.")
+endif()
 
 include(CMakeDependentOption)
 
@@ -85,9 +92,9 @@ juce_disable_default_flags()
 
 add_subdirectory(extras/Build)
 
-# If you want to build the JUCE examples with VST2/AAX/ARA support, you'll need to make the
-# VST2/AAX/ARA headers visible to the juce_audio_processors module. You can either set the paths on
-# the command line, (e.g. -DJUCE_GLOBAL_AAX_SDK_PATH=/path/to/sdk) if you're just building the JUCE
+# If you want to build the JUCE examples with VST2/ARA support, you'll need to make the
+# VST2/ARA headers visible to the juce_audio_processors module. You can either set the paths on
+# the command line, (e.g. -DJUCE_GLOBAL_ARA_SDK_PATH=/path/to/sdk) if you're just building the JUCE
 # examples, or you can call the `juce_set_*_sdk_path` functions in your own CMakeLists after
 # importing JUCE.
 
@@ -159,6 +166,9 @@ configure_package_config_file("${JUCE_CMAKE_UTILS_DIR}/JUCEConfig.cmake.in"
 
 install(FILES "${JUCE_BINARY_DIR}/JUCEConfigVersion.cmake"
               "${JUCE_BINARY_DIR}/JUCEConfig.cmake"
+              "${JUCE_CMAKE_UTILS_DIR}/FindCppwinrt.cmake"
+              "${JUCE_CMAKE_UTILS_DIR}/FindWebView2.cmake"
+              "${JUCE_CMAKE_UTILS_DIR}/FindWindowsMIDIServices.cmake"
               "${JUCE_CMAKE_UTILS_DIR}/JUCECheckAtomic.cmake"
               "${JUCE_CMAKE_UTILS_DIR}/JUCEHelperTargets.cmake"
               "${JUCE_CMAKE_UTILS_DIR}/JUCEModuleSupport.cmake"
@@ -175,6 +185,9 @@ install(FILES "${JUCE_BINARY_DIR}/JUCEConfigVersion.cmake"
               "${JUCE_CMAKE_UTILS_DIR}/copyDir.cmake"
               "${JUCE_CMAKE_UTILS_DIR}/juce_runtime_arch_detection.cpp"
               "${JUCE_CMAKE_UTILS_DIR}/juce_LinuxSubprocessHelper.cpp"
+        DESTINATION "${JUCE_INSTALL_DESTINATION}")
+
+install(DIRECTORY "${JUCE_CMAKE_UTILS_DIR}/juce_vst3_helper"
         DESTINATION "${JUCE_INSTALL_DESTINATION}")
 
 if(("${CMAKE_SOURCE_DIR}" STREQUAL "${JUCE_SOURCE_DIR}") AND (NOT JUCE_BUILD_HELPER_TOOLS))

@@ -44,7 +44,7 @@
 
   ID:                 juce_graphics
   vendor:             juce
-  version:            8.0.12
+  version:            8.0.14
   name:               JUCE graphics classes
   description:        Classes for 2D vector graphics, image loading/saving, font handling, etc.
   website:            http://www.juce.com/juce
@@ -148,7 +148,6 @@ namespace juce
 #include "fonts/juce_TextLayout.h"
 #include "contexts/juce_LowLevelGraphicsContext.h"
 #include "images/juce_ScaledImage.h"
-#include "detail/juce_FontRendering.h"
 #include "contexts/juce_LowLevelGraphicsSoftwareRenderer.h"
 #include "effects/juce_ImageEffectFilter.h"
 #include "effects/juce_DropShadowEffect.h"

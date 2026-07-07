@@ -90,6 +90,12 @@ public:
     /** There's only one desktop object, and this method will return it. */
     static Desktop& JUCE_CALLTYPE getInstance();
 
+    /** This function may return a nullptr if the desktop object hasn't been created yet, and more
+        importantly, if it has already been destroyed during shutdown. This function should be used
+        in destructors that want to unregister a listener from the Desktop instance.
+    */
+    static Desktop* JUCE_CALLTYPE getInstanceWithoutCreating();
+
     //==============================================================================
     /** Returns the mouse position.
 
@@ -458,7 +464,7 @@ private:
 
     std::unique_ptr<FocusOutline> focusOutline;
 
-    Component* kioskModeComponent = nullptr;
+    Component::SafePointer<Component> kioskModeComponent;
     Rectangle<int> kioskComponentOriginalBounds;
     bool kioskModeReentrant = false;
 

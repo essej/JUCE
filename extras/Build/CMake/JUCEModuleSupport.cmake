@@ -44,10 +44,6 @@
 include_guard(GLOBAL)
 cmake_minimum_required(VERSION 3.22)
 
-if(NOT CMAKE_C_COMPILE_OBJECT)
-    message(FATAL_ERROR "A C compiler is required to build JUCE. Add 'C' to your project's LANGUAGES.")
-endif()
-
 # ==================================================================================================
 
 set(JUCE_CMAKE_UTILS_DIR ${CMAKE_CURRENT_LIST_DIR}
@@ -317,29 +313,17 @@ endfunction()
 # ==================================================================================================
 
 # Takes a target, a link visibility, if it should be a weak link, and a variable-length list of
-# framework names. On macOS, for non-weak links, this finds the requested frameworks using
-# `find_library`.
+# framework names.
 function(_juce_link_frameworks target visibility)
     set(options WEAK)
     cmake_parse_arguments(JUCE_LINK_FRAMEWORKS "${options}" "" "" ${ARGN})
     foreach(framework IN LISTS JUCE_LINK_FRAMEWORKS_UNPARSED_ARGUMENTS)
-        if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-            if(JUCE_LINK_FRAMEWORKS_WEAK)
-                set(framework_flags "-weak_framework ${framework}")
-            else()
-                find_library("juce_found_${framework}" "${framework}" REQUIRED)
-                set(framework_flags "${juce_found_${framework}}")
-            endif()
-        elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-            if(JUCE_LINK_FRAMEWORKS_WEAK)
-                set(framework_flags "-weak_framework ${framework}")
-            else()
-                set(framework_flags "-framework ${framework}")
-            endif()
+        if(JUCE_LINK_FRAMEWORKS_WEAK)
+            set(framework_flags "-weak_framework ${framework}")
+        else()
+            set(framework_flags "-framework ${framework}")
         endif()
-        if(NOT framework_flags STREQUAL "")
-            target_link_libraries("${target}" "${visibility}" "${framework_flags}")
-        endif()
+        target_link_libraries("${target}" "${visibility}" "${framework_flags}")
     endforeach()
 endfunction()
 

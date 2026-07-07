@@ -301,21 +301,23 @@ public:
         return from (FontOptions{}.withName ("Roboto"));
     }
 
-    static JUCE_INTRODUCED_IN_29 Typeface::Ptr findGenericTypefaceWithMatcher (const char* name)
+    static JUCE_INTRODUCED_IN_29 Typeface::Ptr findGenericTypefaceWithMatcher (const Font& font)
     {
-        using AFontMatcherPtr = std::unique_ptr<AFontMatcher, FunctionPointerDestructor<AFontMatcher_destroy>>;
-        using AFontPtr = std::unique_ptr<AFont, FunctionPointerDestructor<AFont_close>>;
-
         constexpr uint16_t testString[] { 't', 'e', 's', 't' };
 
-        const AFontMatcherPtr matcher { AFontMatcher_create() };
-        const AFontPtr matched { AFontMatcher_match (matcher.get(),
-                                                     name,
-                                                     testString,
-                                                     std::size (testString),
-                                                     nullptr) };
+        auto* matcher = AFontMatcher_create();
+        const ScopeGuard freeMatcher { [&] { AFontMatcher_destroy (matcher); } };
+        const auto weight = font.isBold() ? AFONT_WEIGHT_BOLD : AFONT_WEIGHT_NORMAL;
+        const auto italic = font.isItalic();
+        AFontMatcher_setStyle (matcher, weight, italic);
+        auto* matched { AFontMatcher_match (matcher,
+                                            font.getTypefaceName().toRawUTF8(),
+                                            testString,
+                                            std::size (testString),
+                                            nullptr) };
+        const ScopeGuard freeMatch { [&] { AFont_close (matched); } };
 
-        return fromMatchedFont (matched.get());
+        return fromMatchedFont (matched);
     }
 
 private:
@@ -348,33 +350,32 @@ private:
 
     static JUCE_INTRODUCED_IN_29 Typeface::Ptr findSystemTypefaceWithMatcher()
     {
-        return findGenericTypefaceWithMatcher ("system-ui");
+        return findGenericTypefaceWithMatcher (FontOptions{}.withName ("system-ui"));
     }
 
     JUCE_INTRODUCED_IN_29 Typeface::Ptr matchWithAFontMatcher (const String& text, const String& language) const
     {
-        using AFontMatcherPtr = std::unique_ptr<AFontMatcher, FunctionPointerDestructor<AFontMatcher_destroy>>;
-        using AFontPtr = std::unique_ptr<AFont, FunctionPointerDestructor<AFont_close>>;
-
-        const AFontMatcherPtr matcher { AFontMatcher_create() };
+        auto* matcher = AFontMatcher_create();
+        const ScopeGuard freeMatcher { [&] { AFontMatcher_destroy (matcher); } };
 
         const auto weight = hb_style_get_value (native->getFont(), HB_STYLE_TAG_WEIGHT);
         const auto italic = hb_style_get_value (native->getFont(), HB_STYLE_TAG_ITALIC) != 0.0f;
-        AFontMatcher_setStyle (matcher.get(), (uint16_t) weight, italic);
+        AFontMatcher_setStyle (matcher, (uint16_t) weight, italic);
 
-        AFontMatcher_setLocales (matcher.get(), language.toRawUTF8());
+        AFontMatcher_setLocales (matcher, language.toRawUTF8());
 
         const auto utf16 = text.toUTF16();
 
-        const AFontPtr matched { AFontMatcher_match (matcher.get(),
-                                                     readFontName (hb_font_get_face (native->getFont()),
-                                                                   HB_OT_NAME_ID_FONT_FAMILY,
-                                                                   nullptr).toRawUTF8(),
-                                                     unalignedPointerCast<const uint16_t*> (utf16.getAddress()),
-                                                     (uint32_t) (utf16.findTerminatingNull().getAddress() - utf16.getAddress()),
-                                                     nullptr) };
+        auto* matched = AFontMatcher_match (matcher,
+                                            readFontName (hb_font_get_face (native->getFont()),
+                                                          HB_OT_NAME_ID_FONT_FAMILY,
+                                                          nullptr).toRawUTF8(),
+                                            unalignedPointerCast<const uint16_t*> (utf16.getAddress()),
+                                            (uint32_t) (utf16.findTerminatingNull().getAddress() - utf16.getAddress()),
+                                            nullptr);
+        const ScopeGuard freeMatched { [&] { AFont_close (matched); } };
 
-        return fromMatchedFont (matched.get());
+        return fromMatchedFont (matched);
     }
 
     static bool shouldStoreAndroidFont (hb_face_t* face)
@@ -432,7 +433,7 @@ private:
     */
     static Typeface::Ptr fromMemory (DoCache cache,
                                      Span<const std::byte> blob,
-                                     unsigned int index = 0)
+                                     unsigned int index)
     {
         auto face = FontStyleHelpers::getFaceForBlob ({ reinterpret_cast<const char*> (blob.data()), blob.size() }, index);
 
@@ -469,7 +470,7 @@ private:
         : Typeface (name, style),
           doCache (cache),
           javaFont (std::move (javaFontIn)),
-          native (std::make_unique<Native> (TypefaceNativeOptions { std::move (fontIn), nonPortableMetricsIn, this }))
+          native (std::make_unique<Native> (TypefaceNativeOptions { fontIn, nonPortableMetricsIn, this }))
     {
         if (doCache == DoCache::yes)
             if (auto* c = MemoryFontCache::getInstance())
@@ -794,9 +795,20 @@ Typeface::Ptr Font::Native::getDefaultPlatformTypefaceForFont (const Font& font)
     {
         if (__builtin_available (android 29, *))
         {
-            if (faceName == Font::getDefaultSansSerifFontName())    return AndroidTypeface::findGenericTypefaceWithMatcher ("sans-serif");
-            if (faceName == Font::getDefaultSerifFontName())        return AndroidTypeface::findGenericTypefaceWithMatcher ("serif");
-            if (faceName == Font::getDefaultMonospacedFontName())   return AndroidTypeface::findGenericTypefaceWithMatcher ("monospace");
+            const auto nameToFind = std::invoke ([&]
+            {
+                if (faceName == Font::getDefaultSansSerifFontName())  return "sans-serif";
+                if (faceName == Font::getDefaultSerifFontName())      return "serif";
+                if (faceName == Font::getDefaultMonospacedFontName()) return "monospace";
+                return "";
+            });
+
+            if (strlen (nameToFind) == 0)
+                return nullptr;
+
+            auto copy = font;
+            copy.setTypefaceName (nameToFind);
+            return AndroidTypeface::findGenericTypefaceWithMatcher (copy);
         }
 
         return nullptr;

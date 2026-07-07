@@ -639,9 +639,13 @@ void Direct2DGraphicsContext::restoreState()
 
     currentState = getPimpl()->popSavedState();
 
-    currentState->updateColourBrush();
-    jassert (currentState);
+    if (currentState == nullptr)
+    {
+        jassertfalse;
+        return;
+    }
 
+    currentState->updateColourBrush();
     resetPendingClipList();
 }
 
@@ -960,7 +964,12 @@ void Direct2DGraphicsContext::drawImage (const Image& imageIn, const AffineTrans
             }
         };
 
-        if (imageTransform.isOnlyTranslation() || D2DHelpers::isTransformAxisAligned (imageTransform))
+        const auto canDrawWithoutTransform = imageTransform.isOnlyTranslation()
+                                             || (D2DHelpers::isTransformAxisAligned (imageTransform)
+                                                 && 0.0f < imageTransform.mat00
+                                                 && 0.0f < imageTransform.mat11);
+
+        if (canDrawWithoutTransform)
         {
             drawTiles ([&] (auto intersection)
             {
