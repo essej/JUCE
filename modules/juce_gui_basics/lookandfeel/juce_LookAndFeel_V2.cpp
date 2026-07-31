@@ -1318,7 +1318,7 @@ Label* LookAndFeel_V2::createComboBoxTextBox (ComboBox&)
     return new Label (String(), String());
 }
 
-void LookAndFeel_V2::positionComboBoxText (ComboBox& box, Label& label, Component* image)
+void LookAndFeel_V2::positionComboBoxText (ComboBox& box, Label& label, DrawableComponent* image)
 {
     int imagewidth = image != nullptr ? 20 : 0;
 
@@ -1327,7 +1327,8 @@ void LookAndFeel_V2::positionComboBoxText (ComboBox& box, Label& label, Componen
                      box.getHeight() - 2);
 
     if (image != nullptr) {
-        image->setBounds (Rectangle<float>(1, 1, imagewidth, box.getHeight() - 2).toNearestInt());
+        image->setTransformToFit (Rectangle<float>(1, 1, imagewidth, box.getHeight() - 2),
+                                  juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize);
     }
 
     label.setFont (getComboBoxFont (box));

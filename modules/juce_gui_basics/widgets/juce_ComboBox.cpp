@@ -298,7 +298,7 @@ void ComboBox::setSelectedId (const int newItemId, const NotificationType notifi
             imageComponent.reset();
         }
         if (item != nullptr && item->image != nullptr) {
-            imageComponent = std::make_unique<DrawableWrapperComponent>(item->image->createCopy());
+            imageComponent = OwningDrawableComponent::createFromCopy(item->image.get());
             addAndMakeVisible(imageComponent.get());
             resized();
         }

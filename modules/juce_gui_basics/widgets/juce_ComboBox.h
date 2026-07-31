@@ -398,7 +398,7 @@ public:
 
         virtual Label* createComboBoxTextBox (ComboBox&) = 0;
 
-        virtual void positionComboBoxText (ComboBox&, Label& labelToPosition, Component * image = nullptr) = 0;
+        virtual void positionComboBoxText (ComboBox&, Label& labelToPosition, DrawableComponent * image = nullptr) = 0;
 
         virtual PopupMenu::Options getOptionsForComboBoxPopupMenu (ComboBox&, Label&) = 0;
 
@@ -471,25 +471,7 @@ private:
     String textWhenNothingSelected, noChoicesMessage;
     EditableState labelEditableState = editableUnknown;
 
-    class DrawableWrapperComponent : public juce::Component
-    {
-        public:
-        DrawableWrapperComponent(std::unique_ptr<juce::Drawable> drawble)
-        : drawable(std::move(drawble))
-        {}
-
-        void paint(juce::Graphics& g) override
-        {
-            if (drawable != nullptr) {
-                // Draw the drawable to fill the component bounds or a specific area
-                drawable->drawWithin(g, getLocalBounds().toFloat(), juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize, 1.0f);
-            }
-        }
-
-        private:
-        std::unique_ptr<juce::Drawable> drawable;
-    };
-    std::unique_ptr<DrawableWrapperComponent> imageComponent;
+    std::unique_ptr<OwningDrawableComponent> imageComponent;
 
     PopupMenu::Item* getItemForId (int) const noexcept;
     PopupMenu::Item* getItemForIndex (int) const noexcept;

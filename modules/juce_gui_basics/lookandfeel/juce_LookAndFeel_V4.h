@@ -203,7 +203,7 @@ public:
                        int buttonX, int buttonY, int buttonW, int buttonH,
                        ComboBox&) override;
     Font getComboBoxFont (ComboBox&) override;
-    void positionComboBoxText (ComboBox&, Label&, Component* optImage) override;
+    void positionComboBoxText (ComboBox&, Label&, DrawableComponent* optImage) override;
 
     //==============================================================================
     int getSliderThumbRadius (Slider&) override;
