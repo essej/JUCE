@@ -293,13 +293,13 @@ void ComboBox::setSelectedId (const int newItemId, const NotificationType notifi
         lastCurrentId = newItemId;
         currentId = newItemId;
 
-        if (image) {
-            removeChildComponent(image.get());
-            image.reset();
+        if (imageComponent) {
+            removeChildComponent(imageComponent.get());
+            imageComponent.reset();
         }
         if (item != nullptr && item->image != nullptr) {
-            image = item->image->createCopy();
-            addAndMakeVisible(image.get());
+            imageComponent = std::make_unique<DrawableWrapperComponent>(item->image->createCopy());
+            addAndMakeVisible(imageComponent.get());
             resized();
         }
         
@@ -415,7 +415,7 @@ void ComboBox::paint (Graphics& g)
 void ComboBox::resized()
 {
     if (getHeight() > 0 && getWidth() > 0)
-        getLookAndFeel().positionComboBoxText (*this, *label, image.get());
+        getLookAndFeel().positionComboBoxText (*this, *label, imageComponent.get());
 }
 
 void ComboBox::enablementChanged()

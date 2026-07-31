@@ -954,7 +954,7 @@ Font LookAndFeel_V4::getComboBoxFont (ComboBox& box)
     return withDefaultMetrics (FontOptions { jmin (16.0f, (float) box.getHeight() * 0.85f) });
 }
 
-void LookAndFeel_V4::positionComboBoxText (ComboBox& box, Label& label, Drawable* image)
+void LookAndFeel_V4::positionComboBoxText (ComboBox& box, Label& label, Component* image)
 {
     int imagewidth = image != nullptr ? (int) (box.getHeight() / 1.3f) : 0;
 
@@ -966,10 +966,10 @@ void LookAndFeel_V4::positionComboBoxText (ComboBox& box, Label& label, Drawable
         // if the label is too narrow, we set its width to 0 to hide it completely and show the image only centered
         if (label.getWidth() < imagewidth * 2) {
             label.setSize(0, label.getHeight());
-            image->setTransformToFit (Rectangle<float>(1 + (box.getWidth()-30)/2 - imagewidth/2, 1, imagewidth, box.getHeight() - 2), RectanglePlacement::centred | RectanglePlacement::onlyReduceInSize);
+            image->setBounds (Rectangle<float>(1 + (box.getWidth()-30)/2 - imagewidth/2, 1, imagewidth, box.getHeight() - 2).toNearestInt());
         }
         else {
-            image->setTransformToFit (Rectangle<float>(3, 1, imagewidth - 6, box.getHeight() - 2), RectanglePlacement::centred | RectanglePlacement::onlyReduceInSize);
+            image->setBounds (Rectangle<float>(3, 1, imagewidth - 6, box.getHeight() - 2).toNearestInt());
         }
     }
     
