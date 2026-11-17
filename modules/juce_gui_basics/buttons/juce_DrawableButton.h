@@ -70,7 +70,8 @@ public:
     //==============================================================================
     /** Creates a DrawableButton.
 
-        After creating one of these, use setImages() to specify the drawables to use.
+        After creating one of these, use setImages() to specify the drawables to use. The button
+        will fit the bounds returned by Drawable::getDrawableBounds() into its image area.
 
         @param buttonName           the name to give the component
         @param buttonStyle          the layout to use
@@ -79,6 +80,20 @@ public:
     */
     DrawableButton (const String& buttonName,
                     ButtonStyle buttonStyle);
+
+    /** Creates a DrawableButton.
+
+        After creating one of these, use setImages() to specify the drawables to use.
+
+        @param buttonName           the name to give the component
+        @param buttonStyle          the layout to use
+        @param boundsToEnclose      the part of the image the button should enclose
+
+        @see ButtonStyle, setButtonStyle, setImages
+    */
+    DrawableButton (const String& buttonName,
+                    ButtonStyle buttonStyle,
+                    BoundsToEnclose boundsToEnclose);
 
     /** Destructor. */
     ~DrawableButton() override;
@@ -198,6 +213,7 @@ private:
 
     //==============================================================================
     ButtonStyle style;
+    BoundsToEnclose boundsToEnclose;
 
     std::unique_ptr<DrawableComponent> normalImage,
                                        overImage,

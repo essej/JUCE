@@ -47,6 +47,12 @@ struct TextureInfo
     float fullWidthProportion, fullHeightProportion;
 };
 
+struct CachedImageListListener
+{
+    virtual ~CachedImageListListener() = default;
+    virtual void cachedImageListWillClearTextureId (GLuint textureId) = 0;
+};
+
 //==============================================================================
 // This list persists in the OpenGLContext, and will re-use cached textures which
 // are created from Images.
@@ -79,12 +85,21 @@ struct CachedImageList final : public ReferenceCountedObject,
         {
             if (auto fb = OpenGLImageType::getFrameBufferFrom (image))
             {
+                const auto textureWidth  = fb->getTextureWidth();
+                const auto textureHeight = fb->getTextureHeight();
+
+                if (textureWidth <= 0 || textureHeight <= 0)
+                {
+                    jassertfalse;
+                    return {};
+                }
+
                 TextureInfo t;
                 t.textureID = fb->getTextureID();
                 t.imageWidth = image.getWidth();
                 t.imageHeight = image.getHeight();
-                t.fullWidthProportion  = 1.0f;
-                t.fullHeightProportion = 1.0f;
+                t.fullWidthProportion  = (float) t.imageWidth  / (float) textureWidth;
+                t.fullHeightProportion = (float) t.imageHeight / (float) textureHeight;
 
                 return t;
             }
@@ -92,7 +107,7 @@ struct CachedImageList final : public ReferenceCountedObject,
             c = images.add (new CachedImage (*this, pixelData.get()));
             totalSize += c->imageSize;
 
-            while (totalSize > maxCacheSize && images.size() > 1 && totalSize > 0)
+            while (totalSize > maxCacheSize && images.size() > 1)
                 removeOldestItem();
         }
 
@@ -104,7 +119,7 @@ struct CachedImageList final : public ReferenceCountedObject,
         CachedImage (CachedImageList& list, ImagePixelData* im)
             : owner (list), pixelData (im),
               lastUsed (Time::getCurrentTime()),
-              imageSize ((size_t) (im->width * im->height))
+              imageSize ((size_t) im->width * (size_t) im->height * sizeof (PixelARGB))
         {
             pixelData->listeners.add (&owner);
         }
@@ -124,8 +139,17 @@ struct CachedImageList final : public ReferenceCountedObject,
 
             if (textureNeedsReloading)
             {
+                GLint prev{};
+                glGetIntegerv (GL_TEXTURE_BINDING_2D, &prev);
+
                 textureNeedsReloading = false;
                 texture.loadImage (Image (*pixelData));
+
+                GLint next{};
+                glGetIntegerv (GL_TEXTURE_BINDING_2D, &next);
+
+                if (next != prev)
+                    glBindTexture (GL_TEXTURE_2D, (GLuint) prev);
             }
 
             t.textureID = texture.getTextureID();
@@ -148,10 +172,21 @@ struct CachedImageList final : public ReferenceCountedObject,
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CachedImage)
     };
 
+    void addListener (CachedImageListListener& x)
+    {
+        listeners.add (&x);
+    }
+
+    void removeListener (CachedImageListListener& x)
+    {
+        listeners.remove (&x);
+    }
+
     using Ptr = ReferenceCountedObjectPtr<CachedImageList>;
 
 private:
     OpenGLContext& context;
+    ListenerList<CachedImageListListener> listeners;
     OwnedArray<CachedImage> images;
     size_t totalSize = 0;
     const size_t maxCacheSize;
@@ -176,6 +211,9 @@ private:
 
         if (iter == images.end())
             return;
+
+        const auto textureId = (*iter)->texture.getTextureID();
+        listeners.call ([textureId] (auto& l) { l.cachedImageListWillClearTextureId (textureId); });
 
         if (canUseContext())
         {
@@ -215,6 +253,270 @@ private:
 };
 
 //==============================================================================
+struct ActiveTextures
+{
+    explicit ActiveTextures (const OpenGLContext& c) noexcept
+        : needsToEnableTexture (c.getProfile() == OpenGLProfile::compatibility)
+    {
+    }
+
+    void clear() noexcept
+    {
+        zeromem (currentTextureID, sizeof (currentTextureID));
+    }
+
+    template <typename QuadQueueType>
+    void setTexturesEnabled (QuadQueueType& quadQueue, int textureIndexMask) noexcept
+    {
+        if (texturesEnabled != textureIndexMask)
+        {
+            quadQueue.flush();
+
+            for (int i = numTextures; --i >= 0;)
+            {
+                if ((texturesEnabled & (1 << i)) != (textureIndexMask & (1 << i)))
+                {
+                    setActiveTexture (i);
+                    JUCE_CHECK_OPENGL_ERROR
+
+                    const auto thisTextureEnabled = (textureIndexMask & (1 << i)) != 0;
+
+                    if (! thisTextureEnabled)
+                        currentTextureID[i] = 0;
+
+                   #if ! JUCE_ANDROID
+                    if (needsToEnableTexture)
+                    {
+                        if (thisTextureEnabled)
+                            glEnable (GL_TEXTURE_2D);
+                        else
+                            glDisable (GL_TEXTURE_2D);
+
+                        JUCE_CHECK_OPENGL_ERROR
+                    }
+                   #endif
+                }
+            }
+
+            texturesEnabled = textureIndexMask;
+        }
+    }
+
+    template <typename QuadQueueType>
+    void disableTextures (QuadQueueType& quadQueue) noexcept
+    {
+        setTexturesEnabled (quadQueue, 0);
+    }
+
+    template <typename QuadQueueType>
+    void setSingleTextureMode (QuadQueueType& quadQueue) noexcept
+    {
+        setTexturesEnabled (quadQueue, 1);
+        setActiveTexture (0);
+    }
+
+    template <typename QuadQueueType>
+    void setTwoTextureMode (QuadQueueType& quadQueue, GLuint texture1, GLuint texture2)
+    {
+        JUCE_CHECK_OPENGL_ERROR
+        setTexturesEnabled (quadQueue, 3);
+
+        if (currentActiveTexture == 0)
+        {
+            bindTexture (texture1);
+            setActiveTexture (1);
+            bindTexture (texture2);
+        }
+        else
+        {
+            setActiveTexture (1);
+            bindTexture (texture2);
+            setActiveTexture (0);
+            bindTexture (texture1);
+        }
+
+        JUCE_CHECK_OPENGL_ERROR
+    }
+
+    void setActiveTexture (int index) noexcept
+    {
+        if (currentActiveTexture != index)
+        {
+            currentActiveTexture = index;
+            glActiveTexture (GL_TEXTURE0 + (GLenum) index);
+            JUCE_CHECK_OPENGL_ERROR
+        }
+    }
+
+    void bindTexture (GLuint textureID) noexcept
+    {
+        if (currentActiveTexture < 0 || numTextures <= currentActiveTexture)
+        {
+            jassertfalse;
+            return;
+        }
+
+        if (currentTextureID[currentActiveTexture] != textureID)
+        {
+            currentTextureID[currentActiveTexture] = textureID;
+            glBindTexture (GL_TEXTURE_2D, textureID);
+            JUCE_CHECK_OPENGL_ERROR
+        }
+       #if JUCE_DEBUG
+        else
+        {
+            GLint t = 0;
+            glGetIntegerv (GL_TEXTURE_BINDING_2D, &t);
+            jassert (t == (GLint) textureID);
+        }
+       #endif
+    }
+
+    void unbindTextureFromAllUnits (GLuint textureID) noexcept
+    {
+        const auto previousActiveTexture = currentActiveTexture;
+        auto resetToPreviousTexture = false;
+
+        for (const auto [index, id] : enumerate (currentTextureID, int{}))
+        {
+            if (id != textureID)
+                continue;
+
+            if (index != currentActiveTexture)
+            {
+                setActiveTexture (index);
+                resetToPreviousTexture = true;
+            }
+
+            bindTexture (0);
+        }
+
+        if (resetToPreviousTexture && 0 <= previousActiveTexture)
+            setActiveTexture (previousActiveTexture);
+    }
+
+private:
+    static constexpr auto numTextures = 3;
+    GLuint currentTextureID[numTextures];
+    int texturesEnabled = 0, currentActiveTexture = -1;
+    bool needsToEnableTexture;
+
+    JUCE_DECLARE_NON_COPYABLE (ActiveTextures)
+    JUCE_DECLARE_NON_MOVEABLE (ActiveTextures)
+};
+
+//==============================================================================
+struct GradientTextureCache final : public ReferenceCountedObject
+{
+    GradientTextureCache() = default;
+
+    static GradientTextureCache& get (OpenGLContext& c)
+    {
+        const char cacheValueID[] = "GradientTextureCache";
+        auto* cache = static_cast<GradientTextureCache*> (c.getAssociatedObject (cacheValueID));
+
+        if (cache == nullptr)
+        {
+            cache = new GradientTextureCache();
+            c.setAssociatedObject (cacheValueID, cache);
+        }
+
+        return *cache;
+    }
+
+    // Entries are kept most-recently-used first, so consecutive fills with the same
+    // gradient hit the front entry immediately.
+    OpenGLTexture& getTextureFor (const ColourGradient& gradient, ActiveTextures& activeTextures)
+    {
+        for (const auto [index, entry] : enumerate (entries, ptrdiff_t{}))
+        {
+            if (matches (entry.key, gradient))
+            {
+                std::rotate (entries.begin(), entries.begin() + index, entries.begin() + index + 1);
+                return *entries.front().texture;
+            }
+        }
+
+        auto texture = std::invoke ([&]() -> std::unique_ptr<OpenGLTexture>
+        {
+            if (entries.size() < maxCachedGradients)
+            {
+                activeTextures.clear();
+                return std::make_unique<OpenGLTexture>();
+            }
+
+            auto evicted = std::move (entries.back().texture);
+            entries.pop_back();
+            return evicted;
+        });
+
+        PixelARGB lookup[lookupTableSize];
+        gradient.createLookupTable (lookup);
+        texture->loadARGB (lookup, lookupTableSize, 1);
+
+        entries.insert (entries.begin(), { buildKey (gradient), std::move (texture) });
+        return *entries.front().texture;
+    }
+
+private:
+    struct Entry
+    {
+        std::vector<uint64> key;
+        std::unique_ptr<OpenGLTexture> texture;
+    };
+
+    // point1 and point2 are deliberately excluded as they position the gradient through
+    // the shader's matrix and do not change the table
+    template <typename Callback>
+    static bool emitKeyWords (const ColourGradient& gradient, Callback&& callback)
+    {
+        const auto numStops = gradient.getNumColours();
+
+        if (! callback (((uint64) numStops << 1) | (gradient.isRadial ? 1u : 0u)))
+            return false;
+
+        for (int i = 0; i < numStops; ++i)
+        {
+            const auto position = gradient.getColourPosition (i);
+            uint64 positionBits{};
+            std::memcpy (&positionBits, &position, sizeof (positionBits));
+
+            if (! callback (positionBits) || ! callback ((uint64) gradient.getColour (i).getARGB()))
+                return false;
+        }
+
+        return true;
+    }
+
+    static bool matches (const std::vector<uint64>& key, const ColourGradient& gradient)
+    {
+        size_t index = 0;
+
+        auto result = emitKeyWords (gradient, [&] (uint64 word)
+        {
+            return index < key.size() && key[index++] == word;
+        });
+
+        return result && index == key.size();
+    }
+
+    static std::vector<uint64> buildKey (const ColourGradient& gradient)
+    {
+        std::vector<uint64> key;
+        key.reserve ((size_t) (2 * gradient.getNumColours() + 1));
+        emitKeyWords (gradient, [&] (uint64 word) { key.push_back (word); return true; });
+        return key;
+    }
+
+    static constexpr size_t maxCachedGradients = 128;
+    static constexpr int lookupTableSize = 256;
+
+    std::vector<Entry> entries;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GradientTextureCache)
+};
+
+//==============================================================================
 struct Target
 {
     Target (OpenGLContext& c, GLuint fbID, int width, int height) noexcept
@@ -223,36 +525,38 @@ struct Target
 
     Target (OpenGLContext& c, OpenGLFrameBuffer& fb, Point<int> origin) noexcept
         : context (c), frameBufferID (fb.getFrameBufferID()),
-          bounds (origin.x, origin.y, fb.getWidth(), fb.getHeight())
+          bounds (origin.x, origin.y, fb.getWidth(), fb.getHeight()),
+          viewportYOffset (fb.getTextureHeight() - fb.getHeight())
     {
         jassert (frameBufferID != 0); // trying to render into an uninitialised framebuffer object
     }
 
     Target (const Target& other) noexcept
-        : context (other.context), frameBufferID (other.frameBufferID), bounds (other.bounds)
+        : context (other.context), frameBufferID (other.frameBufferID), bounds (other.bounds),
+          viewportYOffset (other.viewportYOffset)
     {}
 
     Target& operator= (const Target& other) noexcept
     {
         frameBufferID = other.frameBufferID;
         bounds = other.bounds;
+        viewportYOffset = other.viewportYOffset;
         return *this;
     }
 
     void makeActive() const noexcept
     {
-       #if JUCE_WINDOWS
-        if (context.extensions.glBindFramebuffer != nullptr)
-       #endif
+        if (OpenGLHelpers::isFunctionAvailable (context.extensions.glBindFramebuffer))
             context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, frameBufferID);
 
-        glViewport (0, 0, bounds.getWidth(), bounds.getHeight());
+        glViewport (0, viewportYOffset, bounds.getWidth(), bounds.getHeight());
         glDisable (GL_DEPTH_TEST);
     }
 
     OpenGLContext& context;
     GLuint frameBufferID;
     Rectangle<int> bounds;
+    int viewportYOffset = 0;
 };
 
 //==============================================================================
@@ -1125,136 +1429,6 @@ struct StateHelpers
     };
 
     //==============================================================================
-    struct ActiveTextures
-    {
-        explicit ActiveTextures (const OpenGLContext& c) noexcept
-            : needsToEnableTexture (c.getProfile() == OpenGLProfile::compatibility)
-        {
-        }
-
-        void clear() noexcept
-        {
-            zeromem (currentTextureID, sizeof (currentTextureID));
-        }
-
-        template <typename QuadQueueType>
-        void setTexturesEnabled (QuadQueueType& quadQueue, int textureIndexMask) noexcept
-        {
-            if (texturesEnabled != textureIndexMask)
-            {
-                quadQueue.flush();
-
-                for (int i = numTextures; --i >= 0;)
-                {
-                    if ((texturesEnabled & (1 << i)) != (textureIndexMask & (1 << i)))
-                    {
-                        setActiveTexture (i);
-                        JUCE_CHECK_OPENGL_ERROR
-
-                        const auto thisTextureEnabled = (textureIndexMask & (1 << i)) != 0;
-
-                        if (! thisTextureEnabled)
-                            currentTextureID[i] = 0;
-
-                       #if ! JUCE_ANDROID
-                        if (needsToEnableTexture)
-                        {
-                            if (thisTextureEnabled)
-                                glEnable (GL_TEXTURE_2D);
-                            else
-                                glDisable (GL_TEXTURE_2D);
-
-                            JUCE_CHECK_OPENGL_ERROR
-                        }
-                       #endif
-                    }
-                }
-
-                texturesEnabled = textureIndexMask;
-            }
-        }
-
-        template <typename QuadQueueType>
-        void disableTextures (QuadQueueType& quadQueue) noexcept
-        {
-            setTexturesEnabled (quadQueue, 0);
-        }
-
-        template <typename QuadQueueType>
-        void setSingleTextureMode (QuadQueueType& quadQueue) noexcept
-        {
-            setTexturesEnabled (quadQueue, 1);
-            setActiveTexture (0);
-        }
-
-        template <typename QuadQueueType>
-        void setTwoTextureMode (QuadQueueType& quadQueue, GLuint texture1, GLuint texture2)
-        {
-            JUCE_CHECK_OPENGL_ERROR
-            setTexturesEnabled (quadQueue, 3);
-
-            if (currentActiveTexture == 0)
-            {
-                bindTexture (texture1);
-                setActiveTexture (1);
-                bindTexture (texture2);
-            }
-            else
-            {
-                setActiveTexture (1);
-                bindTexture (texture2);
-                setActiveTexture (0);
-                bindTexture (texture1);
-            }
-
-            JUCE_CHECK_OPENGL_ERROR
-        }
-
-        void setActiveTexture (int index) noexcept
-        {
-            if (currentActiveTexture != index)
-            {
-                currentActiveTexture = index;
-                glActiveTexture (GL_TEXTURE0 + (GLenum) index);
-                JUCE_CHECK_OPENGL_ERROR
-            }
-        }
-
-        void bindTexture (GLuint textureID) noexcept
-        {
-            if (currentActiveTexture < 0 || numTextures <= currentActiveTexture)
-            {
-                jassertfalse;
-                return;
-            }
-
-            if (currentTextureID[currentActiveTexture] != textureID)
-            {
-                currentTextureID[currentActiveTexture] = textureID;
-                glBindTexture (GL_TEXTURE_2D, textureID);
-                JUCE_CHECK_OPENGL_ERROR
-            }
-           #if JUCE_DEBUG
-            else
-            {
-                GLint t = 0;
-                glGetIntegerv (GL_TEXTURE_BINDING_2D, &t);
-                jassert (t == (GLint) textureID);
-            }
-           #endif
-        }
-
-    private:
-        static constexpr auto numTextures = 3;
-        GLuint currentTextureID[numTextures];
-        int texturesEnabled = 0, currentActiveTexture = -1;
-        bool needsToEnableTexture;
-
-        JUCE_DECLARE_NON_COPYABLE (ActiveTextures)
-        JUCE_DECLARE_NON_MOVEABLE (ActiveTextures)
-    };
-
-    //==============================================================================
     struct TextureCache
     {
         TextureCache() = default;
@@ -1278,44 +1452,17 @@ struct StateHelpers
             return textures.removeAndReturn (0);
         }
 
-        void resetGradient() noexcept
+        void bindTextureForGradient (OpenGLContext& context, ActiveTextures& activeTextures,
+                                     const ColourGradient& gradient)
         {
-            gradientNeedsRefresh = true;
+            JUCE_CHECK_OPENGL_ERROR;
+            auto& texture = GradientTextureCache::get (context).getTextureFor (gradient, activeTextures);
+            activeTextures.bindTexture (texture.getTextureID());
         }
-
-        void bindTextureForGradient (ActiveTextures& activeTextures, const ColourGradient& gradient)
-        {
-            if (gradientNeedsRefresh)
-            {
-                gradientNeedsRefresh = false;
-
-                if (gradientTextures.size() < numGradientTexturesToCache)
-                {
-                    activeGradientIndex = gradientTextures.size();
-                    activeTextures.clear();
-                    gradientTextures.add (new OpenGLTexture());
-                }
-                else
-                {
-                    activeGradientIndex = (activeGradientIndex + 1) % numGradientTexturesToCache;
-                }
-
-                JUCE_CHECK_OPENGL_ERROR;
-                PixelARGB lookup[gradientTextureSize];
-                gradient.createLookupTable (lookup);
-                gradientTextures.getUnchecked (activeGradientIndex)->loadARGB (lookup, gradientTextureSize, 1);
-            }
-
-            activeTextures.bindTexture (gradientTextures.getUnchecked (activeGradientIndex)->getTextureID());
-        }
-
-        enum { gradientTextureSize = 256 };
 
     private:
-        enum { numTexturesToCache = 8, numGradientTexturesToCache = 10 };
-        OwnedArray<OpenGLTexture> textures, gradientTextures;
-        int activeGradientIndex = 0;
-        bool gradientNeedsRefresh = true;
+        enum { numTexturesToCache = 8 };
+        OwnedArray<OpenGLTexture> textures;
     };
 
     //==============================================================================
@@ -1333,28 +1480,27 @@ struct StateHelpers
         {
             JUCE_CHECK_OPENGL_ERROR
 
-           #if JUCE_ANDROID || JUCE_IOS
-            int numQuads = maxNumQuads;
-           #else
-            GLint maxIndices = 0;
-            glGetIntegerv (GL_MAX_ELEMENTS_INDICES, &maxIndices);
-            auto numQuads = jmin ((int) maxNumQuads, (int) maxIndices / 6);
-            maxVertices = numQuads * 4 - 4;
-           #endif
+            const auto numQuads = getBatchSizeInQuads();
+            vertexData = CopyableHeapBlock<VertexInfo> ((size_t) numQuads * verticesPerQuad);
+            CopyableHeapBlock<IndexType> indexData ((size_t) numQuads * indicesPerQuad);
 
-            for (int i = 0, v = 0; i < numQuads * 6; i += 6, v += 4)
+            for (size_t i = 0, v = 0; i < indexData.size(); i += indicesPerQuad, v += verticesPerQuad)
             {
-                indexData[i] = (GLushort) v;
-                indexData[i + 1] = indexData[i + 3] = (GLushort) (v + 1);
-                indexData[i + 2] = indexData[i + 4] = (GLushort) (v + 2);
-                indexData[i + 5] = (GLushort) (v + 3);
+                indexData[i] = (IndexType) v;
+                indexData[i + 1] = indexData[i + 3] = (IndexType) (v + 1);
+                indexData[i + 2] = indexData[i + 4] = (IndexType) (v + 2);
+                indexData[i + 5] = (IndexType) (v + 3);
             }
 
             savedElementArrayBuffer.bind();
-            context.extensions.glBufferData (GL_ELEMENT_ARRAY_BUFFER, sizeof (indexData), indexData, GL_STATIC_DRAW);
+            context.extensions.glBufferData (GL_ELEMENT_ARRAY_BUFFER,
+                                             (GLsizeiptr) (indexData.size() * sizeof (IndexType)),
+                                             indexData.data(), GL_STATIC_DRAW);
 
             savedArrayBuffer.bind();
-            context.extensions.glBufferData (GL_ARRAY_BUFFER, sizeof (vertexData), vertexData, GL_STREAM_DRAW);
+            context.extensions.glBufferData (GL_ARRAY_BUFFER,
+                                             (GLsizeiptr) (vertexData.size() * sizeof (VertexInfo)),
+                                             nullptr, GL_STREAM_DRAW);
             JUCE_CHECK_OPENGL_ERROR
         }
 
@@ -1362,7 +1508,7 @@ struct StateHelpers
         {
             jassert (w > 0 && h > 0);
 
-            auto* v = vertexData + numVertices;
+            auto* v = vertexData.data() + numVertices;
             v[0].x = v[2].x = (GLshort) x;
             v[0].y = v[1].y = (GLshort) y;
             v[1].x = v[3].x = (GLshort) (x + w);
@@ -1381,8 +1527,11 @@ struct StateHelpers
             v[2].colour = rgba;
             v[3].colour = rgba;
 
-            numVertices += 4;
+            numVertices += verticesPerQuad;
 
+            if ((size_t) numVertices + verticesPerQuad > vertexData.size())
+                 draw();
+            /** OLD jlc hack
             if (context.getMobileBufferBugMitigation()) {
                 if (numVertices >= maxVertices) {
                     //DBG("Shader quad queue: " << ((uint64)this) << " numbverts: " << numVertices << "   " << numQuads);
@@ -1395,6 +1544,7 @@ struct StateHelpers
                     draw();
                 }
             }
+            */
         }
 
         void add (Rectangle<int> r, PixelARGB colour) noexcept
@@ -1439,33 +1589,53 @@ struct StateHelpers
         }
 
     private:
+        using IndexType = GLushort;
+
+        static constexpr auto verticesPerQuad = 4;
+        static constexpr auto indicesPerQuad = 6;
+        static constexpr auto defaultNumQuads = 256;
+        static constexpr auto maxQuadsPerBatch = ((int) std::numeric_limits<IndexType>::max() + 1) / verticesPerQuad;
+
+        static int getBatchSizeInQuads() noexcept
+        {
+            if (OpenGLHelpers::isOpenGLES() && getOpenGLVersion().major < 3)
+                return defaultNumQuads;
+
+            GLint maxIndices = 0;
+            GLint maxVertices = 0;
+            glGetIntegerv (GL_MAX_ELEMENTS_INDICES, &maxIndices);
+            glGetIntegerv (GL_MAX_ELEMENTS_VERTICES, &maxVertices);
+
+            OpenGLHelpers::resetErrorState();
+
+            if (maxIndices <= 0 || maxVertices <= 0)
+                return defaultNumQuads;
+
+            return jlimit (defaultNumQuads,
+                           maxQuadsPerBatch,
+                           jmin (maxIndices / indicesPerQuad, maxVertices / verticesPerQuad));
+        }
+
         struct VertexInfo
         {
             GLshort x, y;
             GLuint colour;
         };
 
-        enum { maxNumQuads = 256 };
-
         SavedBinding<TraitsArrayBuffer> savedArrayBuffer;
         SavedBinding<TraitsElementArrayBuffer> savedElementArrayBuffer;
-        VertexInfo vertexData[maxNumQuads * 4];
-        GLushort indexData[maxNumQuads * 6];
+        CopyableHeapBlock<VertexInfo> vertexData;
         const OpenGLContext& context;
         int numVertices = 0;
 
-       #if JUCE_ANDROID || JUCE_IOS
-        enum { maxVertices = maxNumQuads * 4 - 4 };
-       #else
-        int maxVertices = 0;
-       #endif
-
         void draw() noexcept
         {
-            context.extensions.glBufferSubData (GL_ARRAY_BUFFER, 0, (GLsizeiptr) ((size_t) numVertices * sizeof (VertexInfo)), vertexData);
+            context.extensions.glBufferData (GL_ARRAY_BUFFER,
+                                             (GLsizeiptr) ((size_t) numVertices * sizeof (VertexInfo)),
+                                             vertexData.data(), GL_STREAM_DRAW);
             // NB: If you get a random crash in here and are running in a Parallels VM, it seems to be a bug in
             // their driver. Can't find a workaround unfortunately.
-            glDrawElements (GL_TRIANGLES, (numVertices * 3) / 2, GL_UNSIGNED_SHORT, nullptr);
+            glDrawElements (GL_TRIANGLES, (numVertices / verticesPerQuad) * indicesPerQuad, GL_UNSIGNED_SHORT, nullptr);
             JUCE_CHECK_OPENGL_ERROR
             numVertices = 0;
         }
@@ -1594,7 +1764,7 @@ private:
 };
 
 //==============================================================================
-struct GLState : private ImagePixelData::Listener
+struct GLState : private CachedImageListListener
 {
     explicit GLState (const Target& t) noexcept
         : target (t),
@@ -1614,17 +1784,15 @@ struct GLState : private ImagePixelData::Listener
         shaderQuadQueue.initialise();
         cachedImageList = CachedImageList::get (t.context);
         JUCE_CHECK_OPENGL_ERROR
+
+        cachedImageList->addListener (*this);
     }
 
     ~GLState() override
     {
         flush();
 
-        for (auto* pixelData : observedPixelData)
-        {
-            pixelData->listeners.remove (this);
-        }
-
+        cachedImageList->removeListener (*this);
         target.context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, previousFrameBufferTarget);
     }
 
@@ -1655,12 +1823,12 @@ struct GLState : private ImagePixelData::Listener
             activeTextures.setActiveTexture (1);
             activeTextures.bindTexture ((GLuint) maskTextureID);
             activeTextures.setActiveTexture (0);
-            textureCache.bindTextureForGradient (activeTextures, g);
+            textureCache.bindTextureForGradient (target.context, activeTextures, g);
         }
         else
         {
             activeTextures.setSingleTextureMode (shaderQuadQueue);
-            textureCache.bindTextureForGradient (activeTextures, g);
+            textureCache.bindTextureForGradient (target.context, activeTextures, g);
         }
 
         auto t = transform.translated (0.5f - (float) target.bounds.getX(),
@@ -1761,19 +1929,13 @@ struct GLState : private ImagePixelData::Listener
                                      bool isTiledFill,
                                      BlendMode mode)
     {
-        if (auto pd = image.getPixelData())
-        {
-            observedPixelData.insert (pd.get());
-            pd->listeners.add (this);
-        }
-
         const auto textureInfo = cachedImageList->getTextureFor (image);
 
         blendMode.setBlendMode (shaderQuadQueue, mode);
         auto programs = currentShader.programs;
 
         const ShaderPrograms::MaskedShaderParams* maskParams = nullptr;
-        const ShaderPrograms::ImageParams* imageParams;
+        const ShaderPrograms::ImageParams* imageParams = nullptr;
 
         if (maskArea != nullptr)
         {
@@ -1822,7 +1984,7 @@ struct GLState : private ImagePixelData::Listener
     Target target;
 
     StateHelpers::BlendingMode blendMode;
-    StateHelpers::ActiveTextures activeTextures;
+    ActiveTextures activeTextures;
     StateHelpers::TextureCache textureCache;
     StateHelpers::CurrentShader currentShader;
     StateHelpers::ShaderQuadQueue shaderQuadQueue;
@@ -1831,17 +1993,64 @@ struct GLState : private ImagePixelData::Listener
 
 private:
     GLuint previousFrameBufferTarget;
+
+    class ScopedTextureBindingState
+    {
+    public:
+        ScopedTextureBindingState()
+        {
+            glActiveTexture (previousTextureUnit);
+        }
+
+        ~ScopedTextureBindingState()
+        {
+            for (const auto [index, binding] : enumerate (previousTextureBindings, GLenum{}))
+            {
+                glActiveTexture (GL_TEXTURE0 + index);
+                glBindTexture (GL_TEXTURE_2D, binding);
+            }
+
+            glActiveTexture (previousTextureUnit);
+        }
+
+    private:
+        static GLuint getActiveTextureUnit()
+        {
+            GLint result{};
+            glGetIntegerv (GL_ACTIVE_TEXTURE, &result);
+            return (GLuint) result;
+        }
+
+        static std::vector<GLuint> getTextureBindings()
+        {
+            GLint numUnits{};
+            glGetIntegerv (GL_MAX_TEXTURE_IMAGE_UNITS, &numUnits);
+
+            std::vector<GLuint> result ((size_t) numUnits, 0);
+
+            for (const auto [index, value] : enumerate (result, GLenum{}))
+            {
+                glActiveTexture (GL_TEXTURE0 + index);
+                GLint binding{};
+                glGetIntegerv (GL_TEXTURE_BINDING_2D, &binding);
+                value = (GLuint) binding;
+            }
+
+            return result;
+        }
+
+        GLuint previousTextureUnit = getActiveTextureUnit();
+        std::vector<GLuint> previousTextureBindings = getTextureBindings();
+    };
+
+    ScopedTextureBindingState scopedTextureBindingState;
     SavedBinding<TraitsVAO> savedVAOBinding;
     ViewportRestorer viewportRestorer;
-    std::set<ImagePixelData*> observedPixelData;
 
-    void imageDataBeingDeleted (ImagePixelData* ipd) override
+    void cachedImageListWillClearTextureId (GLuint textureID) override
     {
-        observedPixelData.erase (ipd);
-        activeTextures.bindTexture (0);
+        activeTextures.unbindTextureFromAllUnits (textureID);
     }
-
-    void imageDataChanged (ImagePixelData*) override {}
 
     JUCE_DECLARE_NON_COPYABLE (GLState)
     JUCE_DECLARE_NON_MOVEABLE (GLState)
@@ -1904,12 +2113,6 @@ struct SavedState final : public RenderingHelpers::SavedStateBase<SavedState>
     }
 
     Rectangle<int> getMaximumBounds() const     { return state->target.bounds; }
-
-    void setFillType (const FillType& newFill)
-    {
-        BaseClass::setFillType (newFill);
-        state->textureCache.resetGradient();
-    }
 
     //==============================================================================
     template <typename IteratorType>
@@ -2027,7 +2230,7 @@ struct NonShaderContext final : public LowLevelGraphicsSoftwareRenderer
         if (target.context.getProfile() == OpenGLProfile::compatibility)
             glEnable (GL_TEXTURE_2D);
 
-        clearGLError();
+        OpenGLHelpers::resetErrorState();
        #endif
 
         ViewportRestorer viewportRestorer;
@@ -2044,9 +2247,7 @@ struct NonShaderContext final : public LowLevelGraphicsSoftwareRenderer
                                     false);
         glBindTexture (GL_TEXTURE_2D, 0);
 
-       #if JUCE_WINDOWS
-        if (target.context.extensions.glBindFramebuffer != nullptr)
-       #endif
+        if (OpenGLHelpers::isFunctionAvailable (target.context.extensions.glBindFramebuffer))
             target.context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, previousFrameBufferTarget);
 
         JUCE_CHECK_OPENGL_ERROR

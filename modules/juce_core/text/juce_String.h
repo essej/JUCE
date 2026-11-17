@@ -1177,13 +1177,15 @@ public:
     //==============================================================================
     /** Returns the character pointer currently being used to store this string.
 
+        The text is always null-terminated.
+
         Because it returns a reference to the string's internal data, the pointer
         that is returned must not be stored anywhere, as it can be deleted whenever the
         string changes.
     */
     CharPointerType getCharPointer() const noexcept             { return text; }
 
-    /** Returns a pointer to a UTF-8 version of this string.
+    /** Returns a pointer to a null-terminated UTF-8 version of this string.
 
         Because it returns a reference to the string's internal data, the pointer
         that is returned must not be stored anywhere, as it can be deleted whenever the
@@ -1196,7 +1198,7 @@ public:
     */
     CharPointer_UTF8 toUTF8() const;
 
-    /** Returns a pointer to a UTF-8 version of this string.
+    /** Returns a pointer to a null-terminated UTF-8 version of this string.
 
         Because it returns a reference to the string's internal data, the pointer
         that is returned must not be stored anywhere, as it can be deleted whenever the
@@ -1205,11 +1207,14 @@ public:
         To find out how many bytes you need to store this string as UTF-8, you can call
         CharPointer_UTF8::getBytesRequiredFor (myString.getCharPointer())
 
+        The result of this method can be passed directly to functions that expect a
+        C string.
+
         @see getCharPointer, toUTF8, toUTF16, toUTF32
     */
     const char* toRawUTF8() const;
 
-    /** Returns a pointer to a UTF-16 version of this string.
+    /** Returns a pointer to a null-terminated UTF-16 version of this string.
 
         Because it returns a reference to the string's internal data, the pointer
         that is returned must not be stored anywhere, as it can be deleted whenever the
@@ -1222,7 +1227,7 @@ public:
     */
     CharPointer_UTF16 toUTF16() const;
 
-    /** Returns a pointer to a UTF-32 version of this string.
+    /** Returns a pointer to a null-terminated UTF-32 version of this string.
 
         Because it returns a reference to the string's internal data, the pointer
         that is returned must not be stored anywhere, as it can be deleted whenever the
@@ -1232,7 +1237,7 @@ public:
     */
     CharPointer_UTF32 toUTF32() const;
 
-    /** Returns a pointer to a wchar_t version of this string.
+    /** Returns a pointer to a null-terminated wchar_t version of this string.
 
         Because it returns a reference to the string's internal data, the pointer
         that is returned must not be stored anywhere, as it can be deleted whenever the
@@ -1241,6 +1246,9 @@ public:
         Bear in mind that the wchar_t type is different on different platforms, so on
         Windows, this will be equivalent to calling toUTF16(), on unix it'll be the same
         as calling toUTF32(), etc.
+
+        The result of this method can be passed directly to functions that expect a
+        C string.
 
         @see getCharPointer, toUTF8, toUTF16, toUTF32
     */

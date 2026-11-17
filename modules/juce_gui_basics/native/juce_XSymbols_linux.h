@@ -322,25 +322,6 @@ public:
                                          (::Display*, const char*, Bool),
                                          Atom)
 
-   #if JUCE_USE_XINPUT
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT_RESULT (XIQueryVersion, xiQueryVersion,
-                                                (::Display*, int*, int*),
-                                                Status,
-                                                BadRequest)
-
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XIQueryDevice, xiQueryDevice,
-                                         (::Display*, int, int*),
-                                         XIDeviceInfo*)
-
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XIFreeDeviceInfo, xiFreeDeviceInfo,
-                                         (XIDeviceInfo*),
-                                         void)
-
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XISelectEvents, xiSelectEvents,
-                                         (::Display*, ::Window, XIEventMask*, int),
-                                         Status)
-   #endif
-
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XkbKeycodeToKeysym, xkbKeycodeToKeysym,
                                          (::Display*, KeyCode, unsigned int, unsigned int),
                                          KeySym)
@@ -461,6 +442,12 @@ public:
                                          (::Display*, ::Window, XClassHint*),
                                          void)
 
+    using XAfterFunction = int (*) (::Display*);
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XSetAfterFunction, xSetAfterFunction,
+                                         (::Display*, XAfterFunction),
+                                         XAfterFunction)
+
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XSetErrorHandler, xSetErrorHandler,
                                          (XErrorHandler),
                                          XErrorHandler)
@@ -477,6 +464,10 @@ public:
                                          (::Display*, Atom, ::Window, ::Time),
                                          void)
 
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XSetTransientForHint, xSetTransientForHint,
+                                         (::Display*, ::Window, ::Window),
+                                         int)
+
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XSetWMHints, xSetWMHints,
                                          (::Display*, ::Window, XWMHints*),
                                          void)
@@ -491,6 +482,14 @@ public:
 
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XSetWMNormalHints, xSetWMNormalHints,
                                          (::Display*, ::Window, XSizeHints*),
+                                         void)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XShapeQueryExtension, xShapeQueryExtension,
+                                         (::Display*, int*, int*),
+                                         Bool)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XShapeCombineRectangles, xShapeCombineRectangles,
+                                         (::Display*, ::Window, int, int, int, XRectangle*, int, int, int),
                                          void)
 
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XStringListToTextProperty, xStringListToTextProperty,
@@ -558,22 +557,36 @@ public:
                                          (::Display*, int*),
                                          XineramaScreenInfo*)
    #endif
-   #if JUCE_USE_XRENDER
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderQueryVersion, xRenderQueryVersion,
-                                         (::Display*, int*, int*),
+   #if JUCE_USE_XINPUT
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT_RESULT (XIQueryVersion, xiQueryVersion,
+                                                (::Display*, int*, int*),
+                                                Status,
+                                                BadRequest)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XIQueryDevice, xiQueryDevice,
+                                         (::Display*, int, int*),
+                                         XIDeviceInfo*)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XIFreeDeviceInfo, xiFreeDeviceInfo,
+                                         (XIDeviceInfo*),
+                                         void)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XISelectEvents, xiSelectEvents,
+                                         (::Display*, ::Window, XIEventMask*, int),
                                          Status)
 
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderFindStandardFormat, xRenderFindStandardFormat,
-                                         (Display*, int),
-                                         XRenderPictFormat*)
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XIGetClientPointer, xiGetClientPointer,
+                                         (::Display*, ::Window, int*),
+                                         Bool)
 
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderFindFormat, xRenderFindFormat,
-                                         (Display*, unsigned long, XRenderPictFormat*, int),
-                                         XRenderPictFormat*)
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT_RESULT (XIGrabDevice, xiGrabDevice,
+                                                (::Display*, int, ::Window, ::Time, Cursor, int, int, Bool, XIEventMask*),
+                                                Status,
+                                                BadRequest)
 
-    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderFindVisualFormat, xRenderFindVisualFormat,
-                                         (Display*, Visual*),
-                                         XRenderPictFormat*)
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XIUngrabDevice, xiUngrabDevice,
+                                         (::Display*, int, ::Time),
+                                         Status)
    #endif
    #if JUCE_USE_XRANDR
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRRGetScreenResources, xRRGetScreenResources,
@@ -603,6 +616,23 @@ public:
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRRGetOutputPrimary, xRRGetOutputPrimary,
                                          (::Display*, ::Window),
                                          RROutput)
+   #endif
+   #if JUCE_USE_XRENDER
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderQueryVersion, xRenderQueryVersion,
+                                         (::Display*, int*, int*),
+                                         Status)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderFindStandardFormat, xRenderFindStandardFormat,
+                                         (Display*, int),
+                                         XRenderPictFormat*)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderFindFormat, xRenderFindFormat,
+                                         (Display*, unsigned long, XRenderPictFormat*, int),
+                                         XRenderPictFormat*)
+
+    JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XRenderFindVisualFormat, xRenderFindVisualFormat,
+                                         (Display*, Visual*),
+                                         XRenderPictFormat*)
    #endif
    #if JUCE_USE_XSHM
     JUCE_GENERATE_FUNCTION_WITH_DEFAULT (XShmAttach, xShmAttach,
@@ -650,14 +680,14 @@ private:
    #if JUCE_USE_XINERAMA
     DynamicLibrary xineramaLib { "libXinerama.so.1" };
    #endif
-   #if JUCE_USE_XRENDER
-    DynamicLibrary xrenderLib  { "libXrender.so.1" };
+   #if JUCE_USE_XINPUT
+    DynamicLibrary xinputLib   { "libXi.so.6" };
    #endif
    #if JUCE_USE_XRANDR
     DynamicLibrary xrandrLib   { "libXrandr.so.2" };
    #endif
-   #if JUCE_USE_XINPUT
-    DynamicLibrary xinputLib   { "libXi.so.6" };
+   #if JUCE_USE_XRENDER
+    DynamicLibrary xrenderLib  { "libXrender.so.1" };
    #endif
 
     //==============================================================================

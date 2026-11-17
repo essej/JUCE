@@ -534,7 +534,7 @@ private:
                     if (signature == nullptr)
                     {
                         jassertfalse;
-                        return {};
+                        return Result();
                     }
 
                     JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wnullable-to-nonnull-conversion")
@@ -553,7 +553,7 @@ private:
                 }
 
                 jassertfalse;
-                return {};
+                return Result();
             };
         }
 

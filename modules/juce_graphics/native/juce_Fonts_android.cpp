@@ -73,13 +73,14 @@ DECLARE_JNI_CLASS (AndroidRectF, "android/graphics/RectF")
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
  STATICMETHOD (getInstance, "getInstance", "(Ljava/lang/String;)Ljava/security/MessageDigest;") \
- METHOD       (update,      "update",      "([B)V") \
+ METHOD       (update,      "update",      "([BII)V") \
  METHOD       (digest,      "digest",      "()[B")
 DECLARE_JNI_CLASS (JavaMessageDigest, "java/security/MessageDigest")
 #undef JNI_CLASS_MEMBERS
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
  METHOD       (open,      "open",      "(Ljava/lang/String;)Ljava/io/InputStream;") \
+ METHOD       (list,      "list",      "(Ljava/lang/String;)[Ljava/lang/String;") \
 
 DECLARE_JNI_CLASS (AndroidAssetManager, "android/content/res/AssetManager")
 #undef JNI_CLASS_MEMBERS
@@ -155,9 +156,18 @@ public:
         if (__builtin_available (android 29, *))
             return matchWithAFontMatcher (text, language);
 
-        // The font-fallback API is only available on Android API level 29+
-        jassertfalse;
-        return {};
+        if (text.isEmpty())
+            return {};
+
+        static const auto systemFonts = AndroidFontsFromXml::get();
+
+        if (! systemFonts.has_value())
+            return {};
+
+        // The font-fallback API is only available on Android API level 29+, so try
+        // searching the fonts.xml for a match instead
+
+        return systemFonts->findMatch (text, language);
     }
 
     Ptr cloneWithVariableSettings (Span<const FontVariableSetting> settings) const override
@@ -342,11 +352,10 @@ private:
         auto* env = getEnv();
 
         LocalRef<jbyteArray> bytes { env->NewByteArray ((jint) blob.size()) };
-        {
-            auto* elements = env->GetByteArrayElements (bytes, nullptr);
-            const ScopeGuard scope { [&] { env->ReleaseByteArrayElements (bytes, elements, 0); }};
-            std::transform (blob.begin(), blob.end(), elements, [] (auto x) { return (jbyte) x; });
-        }
+        env->SetByteArrayRegion (bytes.get(),
+                                 0,
+                                 (jsize) blob.size(),
+                                 reinterpret_cast<const jbyte*> (blob.data()));
 
         LocalRef<jobject> byteBuffer { env->CallStaticObjectMethod (JavaByteBuffer,
                                                                     JavaByteBuffer.allocateDirect,
@@ -520,6 +529,181 @@ private:
         std::map<String, std::vector<FileAndIndexForStyle>> map;
     };
 
+    class AndroidFontsFromXml
+    {
+        struct FontIndex
+        {
+            size_t filenameIndex;
+            size_t typefaceIndexInFile;
+        };
+
+    public:
+        static std::optional<AndroidFontsFromXml> get()
+        {
+            const auto xml = XmlDocument::parse (File { "/system/etc/fonts.xml" });
+
+            if (xml == nullptr)
+                return {};
+
+            AndroidFontsFromXml result;
+
+            for (const auto& child : xml->getChildWithTagNameIterator ("family"))
+            {
+                for (const auto& fontElement : child->getChildWithTagNameIterator ("font"))
+                {
+                    const auto filename = fontElement->getAllSubText().trim();
+                    result.sortedFilenames.push_back (filename);
+                }
+            }
+
+            std::sort (result.sortedFilenames.begin(), result.sortedFilenames.end());
+            result.sortedFilenames.erase (std::unique (result.sortedFilenames.begin(), result.sortedFilenames.end()), result.sortedFilenames.end());
+
+            for (const auto& child : xml->getChildWithTagNameIterator ("family"))
+            {
+                const auto langs = child->getStringAttribute ("lang");
+
+                if (langs.isEmpty())
+                    continue;
+
+                for (auto it = langs.begin(), end = langs.end(); it != end;)
+                {
+                    const auto delim = std::find_if (it, end, [] (auto c)
+                    {
+                        return ! std::isalnum ((int) c) && c != '-';
+                    });
+                    const String lang (it, delim);
+
+                    auto& vec = result.fontsByLangScript[lang];
+
+                    for (const auto& fontElement : child->getChildWithTagNameIterator ("font"))
+                    {
+                        const auto filename = fontElement->getAllSubText().trim();
+                        const auto index = (size_t) std::distance (result.sortedFilenames.begin(), std::lower_bound (result.sortedFilenames.begin(), result.sortedFilenames.end(), filename));
+                        const auto indexInFile = (size_t) fontElement->getIntAttribute ("index", 0);
+                        vec.push_back ({ index, indexInFile });
+                    }
+
+                    it = delim == end ? end : delim + 1;
+                }
+            }
+
+            for (const auto& [key, value] : result.fontsByLangScript)
+            {
+                const auto lang = key.upToFirstOccurrenceOf ("-", false, false);
+
+                if (lang.isEmpty())
+                    continue;
+
+                auto& vec = result.fontsByLang[lang];
+                vec.insert (vec.end(), value.begin(), value.end());
+            }
+
+            for (const auto& child : xml->getChildWithTagNameIterator ("family"))
+            {
+                for (const auto& fontElement : child->getChildWithTagNameIterator ("font"))
+                {
+                    const auto filename = fontElement->getAllSubText().trim();
+                    const auto index = (size_t) std::distance (result.sortedFilenames.begin(), std::lower_bound (result.sortedFilenames.begin(), result.sortedFilenames.end(), filename));
+                    const auto indexInFile = (size_t) fontElement->getIntAttribute ("index", 0);
+                    result.fontsByOrder.push_back ({ index, indexInFile });
+                }
+            }
+
+            return result;
+        }
+
+        Typeface::Ptr findMatch (const String& text, const String& language) const
+        {
+            const String languagesToTry[] { language, "und" };
+            const auto script = SBScriptGetUnicodeTag (SBCodepointGetScript ((SBCodepoint) text[0]));
+            const auto scriptsToTry = script == SBScriptGetUnicodeTag (SBScriptZYYY)
+                                    ? std::initializer_list<hb_tag_t> { script, hb_tag_from_string ("Zsye", 4) }
+                                    : std::initializer_list<hb_tag_t> { script };
+
+            for (const auto& testLanguage : languagesToTry)
+            {
+                if (testLanguage.isEmpty())
+                    continue;
+
+                for (const auto& scriptTag : scriptsToTry)
+                {
+                    char scriptString[5]{};
+                    hb_tag_to_string (scriptTag, scriptString);
+
+                    String stringToFind;
+                    stringToFind << testLanguage << '-' << StringRef (scriptString);
+
+                    if (const auto compatibleFont = findCompatibleFontInMap (text, stringToFind, fontsByLangScript))
+                        return compatibleFont;
+                }
+            }
+
+            for (auto lang = language;;)
+            {
+                if (const auto compatibleFont = findCompatibleFontInMap (text, lang, fontsByLang))
+                    return compatibleFont;
+
+                if (const auto compatibleFont = findCompatibleFontInMap (text, lang, fontsByLangScript))
+                    return compatibleFont;
+
+                const auto index = lang.lastIndexOfChar ('-');
+
+                if (index == -1)
+                    break;
+
+                lang = lang.substring (0, index);
+            }
+
+            for (const auto& font : fontsByOrder)
+            {
+                if (auto compatibleFont = checkFontCompatibility (text, sortedFilenames[(size_t) font.filenameIndex], font.typefaceIndexInFile))
+                    return compatibleFont;
+            }
+
+            return {};
+        }
+
+    private:
+        Typeface::Ptr findCompatibleFontInMap (const String& text,
+                                               const String& key,
+                                               const std::map<String, std::vector<FontIndex>>& map) const
+        {
+            const auto match = map.find (key);
+
+            if (match == map.end() || match->second.empty())
+                return {};
+
+            for (const auto& index : match->second)
+            {
+                if (auto compatibleFont = checkFontCompatibility (text, sortedFilenames[index.filenameIndex], index.typefaceIndexInFile))
+                    return compatibleFont;
+            }
+
+            return {};
+        }
+
+        Typeface::Ptr checkFontCompatibility (const String& text, const String& filename, size_t index) const
+        {
+            const auto loaded = loadCompatibleFont ({ "/system/fonts/" + filename, (int) index });
+
+            if (loaded == nullptr)
+                return {};
+
+            const auto glyphIndex = loaded->getNominalGlyphForCodepoint (text[0]);
+
+            if (! glyphIndex.has_value())
+                return {};
+
+            return loaded;
+        }
+
+        std::vector<String> sortedFilenames;
+        std::map<String, std::vector<FontIndex>> fontsByLangScript;
+        std::map<String, std::vector<FontIndex>> fontsByLang;
+        std::vector<FontIndex> fontsByOrder;
+    };
+
     static Ptr fromMemory (Span<const std::byte> blob, unsigned int index)
     {
         auto hbFace = FontStyleHelpers::getFaceForBlob ({ reinterpret_cast<const char*> (blob.data()), blob.size() }, index);
@@ -623,9 +807,36 @@ private:
         if (assetManager == nullptr)
             return {};
 
+        const String fontsDirectory { "fonts" };
+        const LocalRef javaFileName { javaString (fontsDirectory + "/" + typefaceName) };
+        const LocalRef list { (jobjectArray) env->CallObjectMethod (assetManager,
+                                                                    AndroidAssetManager.list,
+                                                                    javaString (fontsDirectory).get()) };
+        jniCheckHasExceptionOccurredAndClear();
+
+        if (list == nullptr)
+            return {};
+
+        const auto anyMatch = std::invoke ([&]
+        {
+            for (jint i = 0, end = env->GetArrayLength (list); i < end; ++i)
+            {
+                if (const LocalRef name { (jstring) env->GetObjectArrayElement (list, i) })
+                {
+                    if (juceString (name.get()) == typefaceName)
+                        return true;
+                }
+            }
+
+            return false;
+        });
+
+        if (! anyMatch)
+            return {};
+
         const LocalRef inputStream { env->CallObjectMethod (assetManager,
                                                             AndroidAssetManager.open,
-                                                            javaString ("fonts/" + typefaceName).get()) };
+                                                            javaFileName.get()) };
 
         // Opening an input stream for an asset might throw if the asset isn't found
         jniCheckHasExceptionOccurredAndClear();
@@ -653,15 +864,24 @@ private:
 
         const auto key = std::invoke ([&]
         {
+            constexpr size_t chunkSize = 16 * 1024;
+
             LocalRef digest (env->CallStaticObjectMethod (JavaMessageDigest, JavaMessageDigest.getInstance, javaString ("MD5").get()));
-            LocalRef bytes (env->NewByteArray ((int) data.size()));
+            LocalRef bytes (env->NewByteArray ((jint) chunkSize));
+            jboolean ignore{};
 
-            jboolean ignore;
-            auto* jbytes = env->GetByteArrayElements (bytes.get(), &ignore);
-            memcpy (jbytes, data.data(), data.size());
-            env->ReleaseByteArrayElements (bytes.get(), jbytes, 0);
+            for (size_t offset = 0; offset < data.size(); offset += chunkSize)
+            {
+                const auto bytesThisTime = std::min (chunkSize, data.size() - offset);
 
-            env->CallVoidMethod (digest.get(), JavaMessageDigest.update, bytes.get());
+                env->SetByteArrayRegion (bytes.get(),
+                                         0,
+                                         (jsize) bytesThisTime,
+                                         reinterpret_cast<const jbyte*> (data.data() + offset));
+
+                env->CallVoidMethod (digest.get(), JavaMessageDigest.update, bytes.get(), 0, (jint) bytesThisTime);
+            }
+
             LocalRef result ((jbyteArray) env->CallObjectMethod (digest.get(), JavaMessageDigest.digest));
             auto* md5Bytes = env->GetByteArrayElements (result.get(), &ignore);
             const ScopeGuard scope { [&] { env->ReleaseByteArrayElements (result.get(), md5Bytes, 0); } };
@@ -753,6 +973,13 @@ private:
         // Canvas.drawGlyphs is only available from API 31
         if (getAndroidSDKVersion() < 31)
             return {};
+
+        if (javaFont == nullptr)
+        {
+            // This API only works when the typeface has cached a copy of the native (Java) font,
+            // which should have happened on construction for a colour font.
+            return {};
+        }
 
         auto* env = getEnv();
 

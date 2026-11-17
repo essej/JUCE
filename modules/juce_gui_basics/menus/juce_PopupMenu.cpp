@@ -76,6 +76,13 @@ static bool canBeTriggered (const Item& item) noexcept
         && (item.customComponent == nullptr || item.customComponent->isTriggeredAutomatically());
 }
 
+static bool canBeHighlightedByKeyboard (const Item& item) noexcept
+{
+    return item.isEnabled
+        && item.itemID != 0
+        && ! item.isSectionHeader;
+}
+
 static bool hasActiveSubMenu (const Item& item) noexcept
 {
     return item.isEnabled
@@ -204,6 +211,14 @@ struct ItemComponent final : public Component
 
             repaint();
         }
+    }
+
+    bool customComponentKeyPressed (const KeyPress& key)
+    {
+        return item.isEnabled
+            && customComp != nullptr
+            && ! customComp->isTriggeredAutomatically()
+            && customComp->keyPressed (key);
     }
 
     static bool isAccessibilityHandlerRequired (const Item& item)
@@ -373,15 +388,10 @@ struct MenuWindow final : public Component, private AsyncUpdater
         }
         else
         {
-            const auto shouldDisableAccessibility = std::invoke ([this]
-            {
-                const auto* compToCheck = parent != nullptr ? parent
-                                                            : options.getTargetComponent();
+            auto* openedFrom = parent != nullptr ? static_cast<Component*> (parent)
+                                                 : options.getTargetComponent();
 
-                return compToCheck != nullptr && ! compToCheck->isAccessible();
-            });
-
-            if (shouldDisableAccessibility)
+            if (openedFrom != nullptr && ! openedFrom->isAccessible())
                 setAccessible (false);
 
             const auto windowsMultiTouchFlag = std::invoke ([&]
@@ -393,9 +403,10 @@ struct MenuWindow final : public Component, private AsyncUpdater
                 return false;
             });
 
-            addToDesktop (ComponentPeer::windowIsTemporary
-                          | ComponentPeer::windowIgnoresKeyPresses
-                          | lf.getMenuWindowFlags());
+            addToDesktop (DesktopWindowOptions().withStyleFlags (ComponentPeer::windowIsTemporary
+                                                                 | ComponentPeer::windowIgnoresKeyPresses
+                                                                 | lf.getMenuWindowFlags())
+                                                .withAssociatedComponent (openedFrom));
 
             if (auto* peer = getPeer())
                 peer->setWindowsCanUseMultiTouch (windowsMultiTouchFlag);
@@ -450,7 +461,7 @@ struct MenuWindow final : public Component, private AsyncUpdater
         });
 
         setOpaque (lf.findColour (backgroundColourId).isOpaque()
-                     || ! Desktop::canUseSemiTransparentWindows());
+                     || (options.getParentComponent() == nullptr && ! Desktop::canUseSemiTransparentWindows()));
 
         const auto initialSelectedId = options.getInitiallySelectedItemId();
 
@@ -657,13 +668,19 @@ struct MenuWindow final : public Component, private AsyncUpdater
         if (! isShowing())
             return;
 
-        auto* accessibleFocus = std::invoke ([this]
+        auto* accessibleFocus = std::invoke ([this]() -> AccessibilityHandler*
         {
             if (currentChild != nullptr)
                 if (auto* childHandler = currentChild->getAccessibilityHandler())
                     return childHandler;
 
-            return getAccessibilityHandler();
+            if (auto* handler = getAccessibilityHandler())
+            {
+                const auto children = handler->getChildren();
+                return children.empty() ? handler : children.front();
+            }
+
+            return nullptr;
         });
 
         if (accessibleFocus != nullptr)
@@ -673,6 +690,9 @@ struct MenuWindow final : public Component, private AsyncUpdater
     //==============================================================================
     bool keyPressed (const KeyPress& key) override
     {
+        if (currentChild != nullptr && currentChild->customComponentKeyPressed (key))
+            return true;
+
         if (key.isKeyCode (KeyPress::downKey))
         {
             selectNextItem (MenuSelectionDirection::forwards);
@@ -1376,7 +1396,7 @@ struct MenuWindow final : public Component, private AsyncUpdater
 
             if (auto* mic = items.getUnchecked ((start + items.size()) % items.size()))
             {
-                if (canBeTriggered (mic->item) || hasActiveSubMenu (mic->item))
+                if (canBeHighlightedByKeyboard (mic->item) || hasActiveSubMenu (mic->item))
                 {
                     setCurrentlyHighlightedChild (mic);
                     return;
